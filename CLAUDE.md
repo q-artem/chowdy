@@ -31,6 +31,12 @@ IR-only pipeline. Цель — холодный auth ≤ 400 мс (Howdy сей�
 | M3 | Полный pipeline e2e (`tools/m3_pipeline_test.cpp`) | ✅ done — "M3 findings" в DESIGN.md. Live MATCH 503 мс cold, sim ~0.87, negative test чисто. |
 | M4 | IPC + daemon skeleton + systemd units | ✅ done — common/, proto/, daemon/, cli/, systemd/ wired, test/auth-test stubs. |
 | M5 | Real auth handler (camera+models+pipeline+store) | ✅ done — "M5 findings" в DESIGN.md. Warm auth ~35 мс через daemon. |
+| M6 | `pam_fastauth.so` (only .so и README, install — твой) | ✅ done — модуль собирается, нужно установить руками по `pam/README.md`. |
+| M7 | Полный `fastauth-cli` (enroll/list/remove/test) | ✅ done — interactive enroll с hint'ами на русском, list/remove работают. |
+| M8 | config.toml + idle_keep policy + secure_buffer ready | ✅ done — `/etc/fastauth/config.toml`, camera освобождается через idle_keep_ms. |
+| M9 | AUR PKGBUILD + install hooks | ✅ done — `packaging/arch/`, готово к `makepkg -si` (не делал сам). |
+
+**Все M1-M9 закрыты.** Следующее — реальная установка пакета и настройка PAM на живой системе (только пользователь).
 | M6 | PAM модуль (**особо осторожно**, см. Section 16 чеклист) | — |
 | M7 | Enrollment CLI | — |
 | M8 | Hardening + QoL | — |
