@@ -89,21 +89,35 @@ void Camera::open(const CameraConfig& cfg) {
                                     MAP_SHARED, fd_, static_cast<off_t>(b.m.offset));
         if (buffers_[i].start == MAP_FAILED) die("mmap");
     }
+    start_stream();
+}
+
+void Camera::start_stream() {
+    if (streaming_) return;
+    if (fd_ < 0) throw std::runtime_error("start_stream on unopened camera");
     for (size_t i = 0; i < buffers_.size(); ++i) {
         v4l2_buffer b{};
         b.type   = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         b.memory = V4L2_MEMORY_MMAP;
         b.index  = static_cast<__u32>(i);
-        if (xioctl(fd_, VIDIOC_QBUF, &b) < 0) die("VIDIOC_QBUF (init)");
+        // After a STREAMOFF buffers are in dequeued state — QBUF before STREAMON.
+        if (xioctl(fd_, VIDIOC_QBUF, &b) < 0) die("VIDIOC_QBUF (start_stream)");
     }
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (xioctl(fd_, VIDIOC_STREAMON, &type) < 0) die("VIDIOC_STREAMON");
+    streaming_ = true;
+}
+
+void Camera::stop_stream() noexcept {
+    if (!streaming_ || fd_ < 0) return;
+    int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    xioctl(fd_, VIDIOC_STREAMOFF, &type);
+    streaming_ = false;
 }
 
 void Camera::close() noexcept {
     if (fd_ < 0) return;
-    int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    xioctl(fd_, VIDIOC_STREAMOFF, &type);
+    stop_stream();
     for (auto& b : buffers_) {
         if (b.start && b.start != MAP_FAILED) ::munmap(b.start, b.length);
     }
@@ -113,7 +127,8 @@ void Camera::close() noexcept {
 }
 
 cv::Mat Camera::capture(std::chrono::milliseconds timeout) {
-    if (fd_ < 0) throw std::runtime_error("Camera::capture on a closed device");
+    if (fd_ < 0 || !streaming_)
+        throw std::runtime_error("Camera::capture without active stream");
 
     fd_set fds; FD_ZERO(&fds); FD_SET(fd_, &fds);
     timeval tv{};

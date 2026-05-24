@@ -27,9 +27,11 @@ struct PipelineConfig {
     std::filesystem::path embedder_model = "/var/lib/fastauth/models/embedder.onnx";
     int                   intra_op_threads = 2;
 
-    // Drop the first N frames after the camera opens — UVC exposure needs
-    // a few frames to stabilise (DESIGN.md §15 / M1 findings).
-    int                   warmup_frames = 3;
+    // Drop the first N frames after the camera STREAMs on. Originally 3
+    // for UVC exposure stabilisation, but profiling (M5+) showed
+    // dark_threshold + detector_conf_threshold already filter the mush;
+    // throwing away usable frames costs ~67 ms each. Default now 0.
+    int                   warmup_frames = 0;
 
     // Skip frames whose mean brightness is below this — the IR emitter on
     // 13d3:56eb pulses, off-frames are unusable (M3 findings, hardware-ir-cam

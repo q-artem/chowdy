@@ -39,27 +39,38 @@ Pipeline::~Pipeline() {
 }
 
 void Pipeline::ensure_camera_open() {
-    if (camera_.is_open()) return;
-    camera_.open(cfg_.camera);
-    frames_since_open_ = 0;
-    common::log::info("camera opened", {{"device", cfg_.camera.device}});
+    // Two-tier bring-up:
+    //   - if camera was never opened, do the full open() (S_FMT+mmap+...);
+    //   - else, if it was opened but stream was stopped (lazy idle), just
+    //     restart the stream — cheap (~10ms) compared to full open (~100ms).
+    if (!camera_.is_open()) {
+        camera_.open(cfg_.camera);
+        frames_since_open_ = 0;
+        common::log::info("camera opened", {{"device", cfg_.camera.device}});
+    } else if (!camera_.is_streaming()) {
+        camera_.start_stream();
+        frames_since_open_ = 0;
+        common::log::info("camera stream resumed");
+    }
 }
 
 void Pipeline::release_camera() {
-    if (!camera_.is_open()) return;
-    camera_.close();
+    // For the lazy/idle path we keep the fd + mmap buffers alive and just
+    // stop the stream — the LED is driven by STREAMON state on UVC, so it
+    // still goes dark. Full teardown happens in ~Pipeline().
+    if (!camera_.is_streaming()) return;
+    camera_.stop_stream();
     frames_since_open_ = 0;
-    common::log::info("camera released");
+    common::log::info("camera stream stopped");
 }
 
 void Pipeline::release_camera_async() {
     // Detached worker — short-lived, takes the pipeline mutex so it can't
     // race with another request grabbing process_one_frame in between.
-    // If a concurrent request arrives first and reopens, this close still
-    // runs after that request finishes (mutex serialises) and just leaves
-    // the camera closed. Next request reopens. Worst-case is an extra
-    // cold-open per LED-blink on heavy concurrent traffic — fine for the
-    // single-user laptop scenario.
+    // If a concurrent request arrives first and resumes streaming, this
+    // stop still runs after that request finishes (mutex serialises) and
+    // just leaves the stream stopped. Next request resumes. Single-user
+    // case never sees the contention.
     std::thread([this] {
         std::lock_guard<std::mutex> g(mu_);
         release_camera();
@@ -82,10 +93,10 @@ void Pipeline::idle_keeper_loop() {
         auto last_tp = clock::time_point(clock::duration(last_ns));
         if (clock::now() - last_tp >= idle_window) {
             std::lock_guard<std::mutex> mu(mu_);
-            if (camera_.is_open()) {
-                common::log::info("idle_keep: closing camera",
+            if (camera_.is_streaming()) {
+                common::log::info("idle_keep: stopping stream",
                     {{"after_ms", std::to_string(cfg_.idle_keep_ms)}});
-                camera_.close();
+                camera_.stop_stream();
                 frames_since_open_ = 0;
             }
         }
@@ -98,31 +109,78 @@ uint32_t Pipeline::embedder_model_id() const noexcept {
 
 FrameOutcome Pipeline::process_one_frame(std::chrono::milliseconds capture_timeout,
                                          bool run_embedder) {
+    using clock = std::chrono::steady_clock;
+    auto t0 = clock::now();
+    auto dt_ms = [](clock::time_point a, clock::time_point b) {
+        return std::chrono::duration<double, std::milli>(b - a).count();
+    };
+
     FrameOutcome out;
+    const bool was_open = camera_.is_open();
     ensure_camera_open();
-    last_use_ns_.store(
-        std::chrono::steady_clock::now().time_since_epoch().count());
+    auto t_open = clock::now();
+
+    last_use_ns_.store(clock::now().time_since_epoch().count());
     cv::Mat frame = camera_.capture(capture_timeout);
-    if (frame.empty()) return out;          // captured=false
+    auto t_cap = clock::now();
+    if (frame.empty()) {
+        common::log::debug("frame.timing",
+            {{"open_ms",    std::to_string(dt_ms(t0, t_open))},
+             {"capture_ms", std::to_string(dt_ms(t_open, t_cap))},
+             {"result",     "no_frame"}});
+        return out;          // captured=false
+    }
     out.captured = true;
     ++frames_since_open_;
 
-    // Throw away the first few frames after open — exposure warmup.
-    if (frames_since_open_ <= cfg_.warmup_frames) return out;
+    if (frames_since_open_ <= cfg_.warmup_frames) {
+        common::log::debug("frame.timing",
+            {{"open_ms",    std::to_string(dt_ms(t0, t_open))},
+             {"capture_ms", std::to_string(dt_ms(t_open, t_cap))},
+             {"result",     "warmup"},
+             {"frame_n",    std::to_string(frames_since_open_)}});
+        return out;
+    }
 
     cv::Scalar mu = cv::mean(frame);
     out.brightness = mu[0];
-    if (out.brightness < cfg_.dark_threshold) return out;   // emitter off-frame
+    auto t_bright = clock::now();
+    if (out.brightness < cfg_.dark_threshold) {
+        common::log::debug("frame.timing",
+            {{"open_ms",    std::to_string(dt_ms(t0, t_open))},
+             {"capture_ms", std::to_string(dt_ms(t_open, t_cap))},
+             {"result",     "dark"},
+             {"brightness", std::to_string(out.brightness)}});
+        return out;
+    }
 
     auto dets = detector_.detect(frame, cfg_.detector_conf_threshold, cfg_.nms_iou);
-    if (dets.empty()) return out;
+    auto t_det = clock::now();
+    if (dets.empty()) {
+        common::log::debug("frame.timing",
+            {{"open_ms",    std::to_string(dt_ms(t0, t_open))},
+             {"capture_ms", std::to_string(dt_ms(t_open, t_cap))},
+             {"detect_ms",  std::to_string(dt_ms(t_bright, t_det))},
+             {"result",     "no_face"}});
+        return out;
+    }
     out.has_face  = true;
     out.detection = dets.front();
     out.quality   = frame_quality(frame, *out.detection);
 
+    double embed_ms = 0;
     if (run_embedder) {
+        auto t_eb = clock::now();
         out.embedding = embedder_.embed_aligned(frame, *out.detection);
+        embed_ms = dt_ms(t_eb, clock::now());
     }
+    common::log::debug("frame.timing",
+        {{"open_ms",    std::to_string(was_open ? 0.0 : dt_ms(t0, t_open))},
+         {"capture_ms", std::to_string(dt_ms(t_open, t_cap))},
+         {"detect_ms",  std::to_string(dt_ms(t_bright, t_det))},
+         {"embed_ms",   std::to_string(embed_ms)},
+         {"score",      std::to_string(out.detection->score)},
+         {"result",     "face"}});
     return out;
 }
 

@@ -36,15 +36,23 @@ public:
     Camera(const Camera&)            = delete;
     Camera& operator=(const Camera&) = delete;
 
-    // Open the device, configure GREY/size/fps, mmap buffers, start streaming.
-    // Throws std::runtime_error with errno detail on any V4L2 failure.
+    // open(): full bring-up — open fd, S_FMT, S_PARM, REQBUFS, mmap, QBUF,
+    // STREAMON. Idempotent.
     void open(const CameraConfig& cfg);
 
-    // True if streaming.
-    bool is_open() const noexcept { return fd_ >= 0; }
-
-    // Stop streaming, unmap buffers, close the device. Safe to call repeatedly.
+    // close(): full teardown — STREAMOFF, munmap, close fd. Safe to call
+    // repeatedly.
     void close() noexcept;
+
+    // Lighter cycle: STREAMOFF only — keeps fd and mmap buffers alive so
+    // start_stream() afterwards is cheap (a few QBUF + STREAMON, no
+    // S_FMT/mmap/exposure-re-warmup). Used by the lazy policy to drop
+    // the indicator LED without paying full reopen.
+    void stop_stream() noexcept;
+    void start_stream();   // QBUF every buffer + STREAMON
+
+    bool is_open() const noexcept { return fd_ >= 0; }
+    bool is_streaming() const noexcept { return streaming_; }
 
     // Wait up to `timeout` for one frame; returns an empty Mat on timeout.
     // The returned Mat owns its data (the mmap buffer is recycled before
@@ -54,7 +62,8 @@ public:
 private:
     struct MmapBuf { void* start = nullptr; std::size_t length = 0; };
 
-    int                   fd_ = -1;
+    int                   fd_        = -1;
+    bool                  streaming_ = false;
     CameraConfig          cfg_{};
     std::vector<MmapBuf>  buffers_;
 };
