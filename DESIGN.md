@@ -774,6 +774,50 @@ Enrollment: собрать 8 эмбеддингов с quality-фильтром 
 
 Лицензионная заметка: тестовые embeddings хранятся в `~/.cache/fastauth/test_embedding.bin` (формат FA01, см. §8). Это просто бинарный дамп 8 × 512 float, читаемый только локально и привязан к `embedder_id` (hash файла модели) — при апдейте модели daemon должен fail-with-message и просить переэнроллиться.
 
+### M5 findings (резидентный daemon с реальным auth handler, 2026-05-24)
+
+Рефактор `tools/m3_pipeline_test.cpp` в `daemon/{camera,models,pipeline,enrollment_store}.cpp` + integration в `handlers/auth.cpp` через `Pipeline*`/`EnrollmentStore*` в `Context`. Daemon под текущим юзером, сокеты в `/tmp/fastauth-smoke/`, enrollment из M3 переименован в `users/1000/main.enc`.
+
+| Сценарий | success | confidence | elapsed |
+|---|---|---|---|
+| Cold (первый auth-test после старта daemon) | true | 0.774 | 1813 мс |
+| Warm #1 | true | 0.753 | **38.1 мс** |
+| Warm #2 | true | 0.725 | **32.3 мс** |
+| Warm #3 | true | 0.862 | **36.7 мс** |
+| Negative (камера прикрыта) | false | 0.000 | 1999 мс (`reason: timeout`) |
+
+Warm auth попадает в ~30–40 мс — **в 4× быстрее цели Section 12 «< 200 мс warm»** и в 13× быстрее cold M3 testbed (503 мс). Cold (1813 мс) — это разовая стоимость загрузки моделей + первый VIDIOC_S_FMT + 3 warmup-кадра + один capture с лицом. После cold камера и сессии ORT держатся в RAM (`warm` policy на M5 hardcoded; `idle_keep_ms` уйдёт в M8). Negative test возвращается за полный timeout без false positive.
+
+Архитектурные решения, реализованные на M5:
+
+- **Camera policy = warm.** Pipeline::ensure_camera_open() идемпотентна, после первого вызова камера не закрывается до завершения daemon. `idle_keep_ms` из DESIGN §6 — задача M8.
+- **Один `std::mutex` на Pipeline.** Сериализует capture, чтобы параллельные auth-запросы от PAM не дрались за `/dev/video2`. Connection threads короткоживущие, конкуренции на mutex почти нет.
+- **`EnrollmentStore` с mtime-кэшем.** Загруженные FA01 файлы кэшируются в RAM, инвалидация по последнему `mtime` файлов в `<users_dir>/<uid>/`. CLI enroll (M7) перезаписывает .enc через rename — mtime меняется, кэш дропается.
+- **`embedder_id` mismatch handling.** На auth daemon фильтрует enrollments по `embedder_model_id()` Pipeline. Mismatch → response `reason: embedder_mismatch`. Это сценарий "пересобрал модель" — фейл с понятным сообщением вместо случайных результатов.
+- **`SO_PEERCRED` gate в `handle_auth`**: `peer.uid==0` (PAM от root) ИЛИ `peer.uid==req.uid` (self-auth для CLI). Иначе `reason: peer_denied`. Это §3 threat model в действии.
+
+Что НЕ делается на M5 (планы):
+- `idle_keep_ms` (камера закрывается через N мс после auth) — M8.
+- Конфиг из `/etc/fastauth/config.toml` — M8; пока всё через `--detector / --embedder / --device / --users-dir` CLI флаги.
+- Quality scoring в production (на M5 он считается, но порог `enroll_quality_min` ещё не применяется в auth path — нужен только для enroll'а в M7).
+- sd-journal structured logging — M8; пока stderr fallback.
+
+Команды smoke-test (для повторения):
+```
+$ mkdir -p /tmp/fastauth-smoke/users/$(id -u)
+$ cp ~/.cache/fastauth/test_embedding.bin \
+     /tmp/fastauth-smoke/users/$(id -u)/main.enc
+$ ./build/daemon/fastauthd --foreground --log-level info \
+    --auth-socket /tmp/fastauth-smoke/auth.sock \
+    --mgmt-socket /tmp/fastauth-smoke/mgmt.sock \
+    --users-dir /tmp/fastauth-smoke/users \
+    --detector models/scrfd_500m_bnkps.onnx \
+    --embedder models/w600k_mbf.onnx &
+$ ./build/cli/fastauth-cli \
+    --mgmt-socket /tmp/fastauth-smoke/mgmt.sock \
+    --auth-socket /tmp/fastauth-smoke/auth.sock auth-test
+```
+
 ---
 
 ## Приложение B: Что НЕ делаем
