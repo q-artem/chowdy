@@ -52,6 +52,20 @@ void Pipeline::release_camera() {
     common::log::info("camera released");
 }
 
+void Pipeline::release_camera_async() {
+    // Detached worker — short-lived, takes the pipeline mutex so it can't
+    // race with another request grabbing process_one_frame in between.
+    // If a concurrent request arrives first and reopens, this close still
+    // runs after that request finishes (mutex serialises) and just leaves
+    // the camera closed. Next request reopens. Worst-case is an extra
+    // cold-open per LED-blink on heavy concurrent traffic — fine for the
+    // single-user laptop scenario.
+    std::thread([this] {
+        std::lock_guard<std::mutex> g(mu_);
+        release_camera();
+    }).detach();
+}
+
 void Pipeline::idle_keeper_loop() {
     using clock = std::chrono::steady_clock;
     const auto idle_window = std::chrono::milliseconds(cfg_.idle_keep_ms);

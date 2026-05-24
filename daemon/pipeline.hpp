@@ -76,6 +76,12 @@ public:
     // Stop streaming + release the camera. Safe even if not currently open.
     void release_camera();
 
+    // Same, but off the calling thread. Spawns a detached worker that grabs
+    // the pipeline mutex and closes — so the handler can return its
+    // response immediately and the indicator LED goes dark in parallel
+    // with the JSON reply hitting the socket.
+    void release_camera_async();
+
     // One synchronous step. Captures a frame (returns captured=false on
     // timeout), filters dark/blank frames, detects, and if a face is
     // present runs the embedder. Skipping the embedder is controlled by
@@ -95,7 +101,10 @@ public:
     struct RequestScope {
         Pipeline& p;
         ~RequestScope() {
-            if (p.cfg_.camera_policy == "lazy") p.release_camera();
+            // Async on lazy — handler returns the response first; the close
+            // happens off-thread so STREAMOFF/munmap/close don't delay
+            // write_message on the client socket.
+            if (p.cfg_.camera_policy == "lazy") p.release_camera_async();
         }
     };
     [[nodiscard]] RequestScope request_scope() noexcept { return RequestScope{*this}; }
