@@ -2,11 +2,22 @@
 #
 # chowdy — резидентный C++ daemon + PAM модуль для face-аутентификации
 # по IR-камере. Альтернатива Howdy с холодным auth < 400 мс. См. DESIGN.md.
+#
+# Источник: по умолчанию makepkg клонирует локальный git checkout,
+# находящийся двумя уровнями выше PKGBUILD (то есть корень самого репо
+# chowdy). Это удобно при разработке: правишь код в репо, идёшь в
+# packaging/arch/ и делаешь `makepkg -si` — собирается ровно то что
+# закоммичено в локальный git.
+#
+# Для AUR-публикации замените source= на upstream release tarball:
+#   source=("$pkgname-$pkgver.tar.gz::https://github.com/USER/chowdy/archive/v$pkgver.tar.gz")
+#   sha256sums=('РЕАЛЬНАЯ_СУММА')
+# и обновите url=, pkgver, pkgrel. См. packaging/arch/README.md.
 
 pkgname=chowdy
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='Resident face authentication daemon for Linux (IR-only, PAM)'
+pkgdesc='Resident C++ face-auth daemon for Linux (IR-only, PAM)'
 arch=('x86_64')
 url='https://github.com/your-username/chowdy'
 license=('MIT')
@@ -23,18 +34,19 @@ makedepends=(
     'cmake'
     'ninja'
     'pkgconf'
+    'git'
 )
 backup=('etc/chowdy/config.toml')
 install=chowdy.install
 
-# Источник: для рабочего PKGBUILD замените на git tag (см. README).
-# Для локальной сборки можно использовать `source=("$pkgname::git+file:///path/to/repo")`.
-source=("$pkgname-$pkgver.tar.gz::file://${PWD}/../../")  # placeholder
+# git+file:// — makepkg клонирует через локальный git protocol
+# (то же что и git clone /path/to/repo). Работает потому что
+# $startdir/../.. — это корень нашего репозитория.
+source=("$pkgname::git+file://$startdir/../..")
 sha256sums=('SKIP')
 
 build() {
-    cd "$srcdir"
-    # Если источник — git: cd "$pkgname"
+    cd "$srcdir/$pkgname"
     cmake -S . -B build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/usr \
@@ -45,23 +57,23 @@ build() {
 }
 
 package() {
-    cd "$srcdir"
-    # cd "$pkgname"
+    cd "$srcdir/$pkgname"
 
     # Бинарники
     install -Dm0755 build/daemon/chowdyd       "$pkgdir/usr/bin/chowdyd"
     install -Dm0755 build/cli/chowdy-cli       "$pkgdir/usr/bin/chowdy-cli"
 
-    # PAM модуль
+    # PAM модуль (НЕ подключается к auth stack автоматически — это руками
+    # по чек-листу /usr/share/doc/chowdy/PAM-INSTALL.md).
     install -Dm0755 build/pam/pam_chowdy.so    "$pkgdir/usr/lib/security/pam_chowdy.so"
 
-    # systemd units
+    # systemd units (включаются вручную через `systemctl enable chowdyd.socket`)
     install -Dm0644 systemd/chowdyd.service    "$pkgdir/usr/lib/systemd/system/chowdyd.service"
     install -Dm0644 systemd/chowdyd.socket     "$pkgdir/usr/lib/systemd/system/chowdyd.socket"
     install -Dm0644 systemd/tmpfiles.d/chowdy.conf \
                                                  "$pkgdir/usr/lib/tmpfiles.d/chowdy.conf"
 
-    # Дефолтный конфиг (пользователь может править — добавлено в backup)
+    # Дефолтный конфиг (помечен как backup= — правки переживут upgrade)
     install -Dm0644 etc/chowdy/config.toml.example \
                                                  "$pkgdir/etc/chowdy/config.toml"
 

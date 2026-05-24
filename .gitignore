@@ -50,3 +50,9 @@ models/*.onnx
 # Ad-hoc benchmark scripts (developer-local)
 /test.sh
 /test2.sh
+/log.sh
+
+# makepkg artifacts in packaging/arch/
+packaging/arch/src/
+packaging/arch/pkg/
+packaging/arch/*.pkg.tar.zst
