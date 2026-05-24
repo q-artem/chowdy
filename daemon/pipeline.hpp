@@ -25,7 +25,7 @@ struct PipelineConfig {
     CameraConfig          camera;
     std::filesystem::path detector_model = "/var/lib/fastauth/models/detector.onnx";
     std::filesystem::path embedder_model = "/var/lib/fastauth/models/embedder.onnx";
-    int                   intra_op_threads = 2;
+    int                   intra_op_threads = 4;
 
     // Drop the first N frames after the camera STREAMs on. Originally 3
     // for UVC exposure stabilisation, but profiling (M5+) showed
@@ -83,6 +83,12 @@ public:
     // response immediately and the indicator LED goes dark in parallel
     // with the JSON reply hitting the socket.
     void release_camera_async();
+
+    // Kick off ensure_camera_open() off-thread. Called by Server right after
+    // accept() so start_stream + a tiny slice of the driver's first-frame
+    // wait overlap with read_message + request parsing. No-op for warm
+    // (always streaming) and idle_keep (idle thread owns lifecycle).
+    void prewarm_async();
 
     // One synchronous step. Captures a frame (returns captured=false on
     // timeout), filters dark/blank frames, detects, and if a face is

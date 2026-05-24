@@ -233,6 +233,18 @@ Detector::Detector(Ort::Env& env, const std::filesystem::path& path, int threads
     model_id_ = common::encoding::simple_model_id(path);
 }
 
+void Detector::warmup() {
+    // Single Run on a zero tensor — same shape SCRFD expects in production.
+    // Output is discarded; we only care about ORT internal JIT/specialisation
+    // happening here instead of on the first real frame.
+    std::vector<float> zeros(static_cast<size_t>(3) * kInputSize * kInputSize, 0.f);
+    const std::array<int64_t, 4> shape{1, 3, kInputSize, kInputSize};
+    Ort::Value t = Ort::Value::CreateTensor<float>(
+        mem_info_, zeros.data(), zeros.size(), shape.data(), shape.size());
+    session_.Run(Ort::RunOptions{}, in_names_.data(), &t, 1,
+                 out_names_.data(), out_names_.size());
+}
+
 std::vector<Detection> Detector::detect(const cv::Mat& grey,
                                         float conf_threshold, float nms_iou) {
     float scale = 1.f; int pad_x = 0; int pad_y = 0;
@@ -254,6 +266,15 @@ Embedder::Embedder(Ort::Env& env, const std::filesystem::path& path, int threads
       mem_info_(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)) {
     resolve_io_names(session_, in_name_holders_, out_name_holders_, in_names_, out_names_);
     model_id_ = common::encoding::simple_model_id(path);
+}
+
+void Embedder::warmup() {
+    std::vector<float> zeros(static_cast<size_t>(3) * kEmbedSize * kEmbedSize, 0.f);
+    const std::array<int64_t, 4> shape{1, 3, kEmbedSize, kEmbedSize};
+    Ort::Value t = Ort::Value::CreateTensor<float>(
+        mem_info_, zeros.data(), zeros.size(), shape.data(), shape.size());
+    session_.Run(Ort::RunOptions{}, in_names_.data(), &t, 1,
+                 out_names_.data(), out_names_.size());
 }
 
 common::encoding::Embedding Embedder::embed_aligned(const cv::Mat& grey,

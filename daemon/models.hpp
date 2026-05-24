@@ -38,6 +38,10 @@ public:
                                   float conf_threshold = 0.5f,
                                   float nms_iou        = 0.4f);
 
+    // Single dummy inference on a zero tensor — pays the ORT JIT cost up
+    // front so the first real detect() in production hits the warm path.
+    void warmup();
+
     // Identity tag of the loaded model file — for embedder_id mismatches in
     // enrollment files.
     uint32_t model_id() const noexcept { return model_id_; }
@@ -61,6 +65,9 @@ public:
     // Returns an L2-normalised 512-d embedding ready for cosine comparison.
     common::encoding::Embedding embed_aligned(const cv::Mat& grey,
                                               const Detection& det);
+
+    // ORT JIT prewarm — see Detector::warmup().
+    void warmup();
 
     uint32_t model_id() const noexcept { return model_id_; }
 

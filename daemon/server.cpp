@@ -18,6 +18,7 @@
 #include "daemon/handlers/auth.hpp"
 #include "daemon/handlers/enroll.hpp"
 #include "daemon/handlers/list_remove.hpp"
+#include "daemon/pipeline.hpp"
 
 namespace fastauth::daemon {
 
@@ -97,6 +98,11 @@ void Server::accept_loop(int listen_fd, SockKind kind) {
         common::Fd conn(cfd);
         // One thread per connection — connections are short-lived (single auth
         // round-trip or short enrollment session), no need for a pool yet.
+        // Pre-warm the camera as soon as we have an accepted connection —
+        // start_stream + driver first-frame wait overlap with reading and
+        // parsing the request body. No-op when policy != lazy.
+        if (pipeline_) pipeline_->prewarm_async();
+
         std::thread([this, c = std::move(conn), kind]() mutable {
             try { handle_connection(std::move(c), kind); }
             catch (const std::exception& e) {

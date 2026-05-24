@@ -18,6 +18,21 @@ Pipeline::Pipeline(const PipelineConfig& cfg)
         {{"detector_id", std::to_string(detector_.model_id())},
          {"embedder_id", std::to_string(embedder_.model_id())}});
 
+    // ORT often JITs / specialises on the first inference, costing ~40-60 ms.
+    // Run a single dummy inference on each model now so the very first real
+    // auth doesn't pay that cost.
+    auto t_warm = std::chrono::steady_clock::now();
+    try {
+        detector_.warmup();
+        embedder_.warmup();
+        common::log::info("models warmed up",
+            {{"ms", std::to_string(
+                std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - t_warm).count())}});
+    } catch (const std::exception& e) {
+        common::log::warn("model warmup failed", {{"err", e.what()}});
+    }
+
     if (cfg_.camera_policy == "warm") {
         // Eager open — the very first auth pays nothing for cold open.
         try { ensure_camera_open(); }
@@ -62,6 +77,18 @@ void Pipeline::release_camera() {
     camera_.stop_stream();
     frames_since_open_ = 0;
     common::log::info("camera stream stopped");
+}
+
+void Pipeline::prewarm_async() {
+    if (cfg_.camera_policy != "lazy") return;
+    std::thread([this]{
+        std::lock_guard<std::mutex> g(mu_);
+        try { ensure_camera_open(); }
+        catch (const std::exception& e) {
+            common::log::debug("prewarm: ensure_camera_open threw",
+                {{"err", e.what()}});
+        }
+    }).detach();
 }
 
 void Pipeline::release_camera_async() {
