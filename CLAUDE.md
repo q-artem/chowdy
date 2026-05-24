@@ -28,8 +28,8 @@ IR-only pipeline. Цель — холодный auth ≤ 400 мс (Howdy сей�
 |---|---|---|
 | M1 | V4L2 capture (`tools/m1_capture_test.cpp`) | ✅ done — "M1 findings" в DESIGN.md Приложение A |
 | M2 | ONNX Runtime + один кадр (`tools/m2_detect_test.cpp`) | ✅ done — "M2 findings" в DESIGN.md Приложение A. Total warm: ~40 мс. |
-| M3 | Полный pipeline e2e без daemon | следующий |
-| M4 | IPC + daemon + systemd | — |
+| M3 | Полный pipeline e2e (`tools/m3_pipeline_test.cpp`) | ✅ done — "M3 findings" в DESIGN.md. Live MATCH 503 мс cold, sim ~0.87, negative test чисто. |
+| M4 | IPC + daemon + systemd | следующий |
 | M5 | Auth handler | — |
 | M6 | PAM модуль (**особо осторожно**, см. Section 16 чеклист) | — |
 | M7 | Enrollment CLI | — |
@@ -46,6 +46,8 @@ cmake -S . -B build -G Ninja
 cmake --build build
 ./build/fastauth-capture-test        # M1 утилита, пишет PGM в /tmp/
 ./build/fastauth-detect-test         # M2 утилита, detect+embed на PGM от M1
+./build/fastauth-pipeline-test --enroll  # M3 утилита, сохраняет твой embedding
+./build/fastauth-pipeline-test           # M3 utility, auth по живой камере
 ```
 
 Модели для M2+ скачиваются локально по инструкции в `models/README.md`

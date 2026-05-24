@@ -45,3 +45,16 @@ target_link_libraries(fastauth-detect-test PRIVATE
     opencv_imgcodecs
     opencv_calib3d
 )
+
+# === M3: full live pipeline test (camera + detect + embed + match) ===
+# Self-contained throwaway — V4L2 + ORT + OpenCV inlined; will be split
+# into daemon/camera, daemon/models, daemon/pipeline on M4-M5.
+add_executable(fastauth-pipeline-test
+    tools/m3_pipeline_test.cpp
+)
+target_link_libraries(fastauth-pipeline-test PRIVATE
+    onnxruntime::onnxruntime
+    opencv_core
+    opencv_imgproc
+    opencv_calib3d
+)
