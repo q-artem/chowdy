@@ -95,17 +95,41 @@ void Camera::open(const CameraConfig& cfg) {
 void Camera::start_stream() {
     if (streaming_) return;
     if (fd_ < 0) throw std::runtime_error("start_stream on unopened camera");
-    for (size_t i = 0; i < buffers_.size(); ++i) {
-        v4l2_buffer b{};
-        b.type   = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        b.memory = V4L2_MEMORY_MMAP;
-        b.index  = static_cast<__u32>(i);
-        // After a STREAMOFF buffers are in dequeued state — QBUF before STREAMON.
-        if (xioctl(fd_, VIDIOC_QBUF, &b) < 0) die("VIDIOC_QBUF (start_stream)");
+
+    auto try_once = [this]() -> int {
+        for (size_t i = 0; i < buffers_.size(); ++i) {
+            v4l2_buffer b{};
+            b.type   = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+            b.memory = V4L2_MEMORY_MMAP;
+            b.index  = static_cast<__u32>(i);
+            // After a STREAMOFF buffers are in dequeued state — QBUF before STREAMON.
+            if (xioctl(fd_, VIDIOC_QBUF, &b) < 0) return errno;
+        }
+        int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        if (xioctl(fd_, VIDIOC_STREAMON, &type) < 0) return errno;
+        return 0;
+    };
+
+    // Retry on EBUSY / EINVAL — these usually mean "another process is currently
+    // streaming on this device" (classic on a system where Howdy or some other
+    // V4L2 consumer is also poking /dev/video2 from PAM). Back off and try a
+    // few times; if it still won't go after ~600ms, give up.
+    constexpr int kMaxAttempts = 6;
+    constexpr int kBackoffMs   = 100;
+    int err = 0;
+    for (int attempt = 0; attempt < kMaxAttempts; ++attempt) {
+        err = try_once();
+        if (err == 0) { streaming_ = true; return; }
+        if (err != EBUSY && err != EINVAL) break;
+        // Stop the stream (no-op if QBUF failed before STREAMON) and reset queue
+        // state before the next try. STREAMOFF on a non-streaming device returns
+        // success on uvcvideo.
+        int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        xioctl(fd_, VIDIOC_STREAMOFF, &type);
+        ::usleep(static_cast<useconds_t>(kBackoffMs * 1000));
     }
-    int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    if (xioctl(fd_, VIDIOC_STREAMON, &type) < 0) die("VIDIOC_STREAMON");
-    streaming_ = true;
+    errno = err;
+    die("VIDIOC_STREAMON");
 }
 
 void Camera::stop_stream() noexcept {
