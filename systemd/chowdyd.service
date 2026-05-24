@@ -1,6 +1,6 @@
 [Unit]
 Description=chowdy face authentication daemon
-Documentation=https://github.com/loskutovp/chowdy
+Documentation=https://github.com/q-artem/chowdy
 Requires=chowdyd.socket
 After=chowdyd.socket
 
