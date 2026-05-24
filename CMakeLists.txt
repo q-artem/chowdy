@@ -2,59 +2,47 @@ cmake_minimum_required(VERSION 3.25)
 project(fastauth
     VERSION 0.1.0
     DESCRIPTION "Fast face-auth daemon for Linux, IR-only"
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Generate compile_commands.json" FORCE)
 
-add_compile_options(
-    -Wall -Wextra -Wpedantic
-    -Wshadow -Wnon-virtual-dtor -Wold-style-cast
-    -Wcast-align -Wunused -Woverloaded-virtual
-    -Wconversion -Wsign-conversion
-    -fstack-protector-strong
-)
+option(FASTAUTH_BUILD_TOOLS "Build milestone testbeds in tools/" ON)
+option(FASTAUTH_BUILD_PAM   "Build pam_fastauth.so"               ON)
+option(FASTAUTH_BUILD_TESTS "Build unit tests (GoogleTest)"       OFF)
 
-# === M1: V4L2 capture test ===
-# Standalone утилита для проверки V4L2 pipeline на IR-камере.
-# Не имеет внешних зависимостей — пишет PGM руками.
-add_executable(fastauth-capture-test
-    tools/m1_capture_test.cpp
-)
+include(cmake/CompileOptions.cmake)
 
-# === M2: ONNX detection + embedding test ===
-# Standalone утилита, подгружает SCRFD-500MF и MobileFaceNet, гоняет
-# inference на PGM-кадре с M1. Использует OpenCV только для image ops
-# (resize, warpAffine).
+# === third-party (shared) ===
 find_package(onnxruntime CONFIG REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d)
+find_package(nlohmann_json CONFIG REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBSYSTEMD REQUIRED IMPORTED_TARGET libsystemd)
+pkg_check_modules(LIBPAM REQUIRED IMPORTED_TARGET pam)
+find_package(Threads REQUIRED)
 
-add_executable(fastauth-detect-test
-    tools/m2_detect_test.cpp
-)
-target_link_libraries(fastauth-detect-test PRIVATE
-    onnxruntime::onnxruntime
-    opencv_core
-    opencv_imgproc
-    opencv_imgcodecs
-    opencv_calib3d
-)
+# === project modules ===
+add_subdirectory(proto)
+add_subdirectory(common)
+add_subdirectory(daemon)
+add_subdirectory(cli)
 
-# === M3: full live pipeline test (camera + detect + embed + match) ===
-# Self-contained throwaway — V4L2 + ORT + OpenCV inlined; will be split
-# into daemon/camera, daemon/models, daemon/pipeline on M4-M5.
-add_executable(fastauth-pipeline-test
-    tools/m3_pipeline_test.cpp
-)
-target_link_libraries(fastauth-pipeline-test PRIVATE
-    onnxruntime::onnxruntime
-    opencv_core
-    opencv_imgproc
-    opencv_calib3d
-)
+if(FASTAUTH_BUILD_PAM)
+    add_subdirectory(pam)
+endif()
+
+if(FASTAUTH_BUILD_TOOLS)
+    add_subdirectory(tools)
+endif()
+
+if(FASTAUTH_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
+# Convenience: print where the artifacts are once configured.
+message(STATUS "fastauth: BUILD_TOOLS=${FASTAUTH_BUILD_TOOLS} BUILD_PAM=${FASTAUTH_BUILD_PAM} BUILD_TESTS=${FASTAUTH_BUILD_TESTS}")

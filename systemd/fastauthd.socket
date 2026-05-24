@@ -1,0 +1,22 @@
+[Unit]
+Description=fastauth authentication and management sockets
+
+[Socket]
+# Slot 0 — auth socket (PAM module). Daemon reads SO_PEERCRED and only
+# accepts requests from uid 0 (PAM in a root-running login service).
+ListenStream=/run/fastauth/auth.sock
+SocketUser=root
+SocketGroup=fastauth
+SocketMode=0660
+
+# Slot 1 — management socket (CLI). Daemon uses SO_PEERCRED to scope every
+# request to the caller's uid.
+ListenStream=/run/fastauth/mgmt.sock
+SocketUser=fastauth
+SocketGroup=fastauth
+SocketMode=0666
+
+Accept=false
+
+[Install]
+WantedBy=sockets.target
