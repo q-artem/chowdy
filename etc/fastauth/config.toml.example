@@ -1,0 +1,57 @@
+# /etc/fastauth/config.toml — пример конфига для fastauthd.
+#
+# Все секции опциональны. Любое отсутствующее поле берёт default,
+# зашитый в common/config.hpp.
+
+[camera]
+# Путь к IR-камере. На ASUS ZenBook 13 Flip (13d3:56eb) by-path
+# `/dev/v4l/by-path/pci-0000:00:14.0-usb-0:5:1.2-video-index0`
+# стабильнее чем `/dev/video2` — `videoN` могут меняться между бутами.
+device         = "/dev/v4l/by-path/pci-0000:00:14.0-usb-0:5:1.2-video-index0"
+width          = 640
+height         = 360
+fps            = 30
+
+# Порог "темного" кадра. Камера 13d3:56eb выдаёт пульсирующий IR-эмиттер
+# с частотой ~15 Гц; кадры в off-фазе имеют brightness ~19 и в них
+# никогда нет лица. См. DESIGN.md Приложение A "M3 findings".
+dark_threshold = 25
+
+# camera_policy:
+#   "lazy"      — открывать /dev/video2 при каждом auth, закрывать сразу.
+#                 На этой железке cold open ~308 ms — съест почти весь
+#                 бюджет auth. Не рекомендуется.
+#   "warm"      — открыть при старте, держать всегда. Камера видна как
+#                 занятая в других приложениях (горит индикатор на ноутах).
+#   "idle_keep" — гибрид: после auth держим камеру открытой `idle_keep_ms`
+#                 миллисекунд, потом закрываем. Default.
+camera_policy  = "idle_keep"
+idle_keep_ms   = 10000
+
+[recognition]
+detector_model          = "/var/lib/fastauth/models/detector.onnx"
+embedder_model          = "/var/lib/fastauth/models/embedder.onnx"
+detector_conf_threshold = 0.5
+similarity_floor        = 0.40
+# IR-сенсор даёт низкий variance(Laplacian), поэтому формула quality
+# из DESIGN §7 на этой камере не должна перешагивать 0.10 для нормальных
+# кадров. См. M3 findings.
+enroll_quality_min      = 0.10
+
+[antispoof]
+# Откладываем до v2. Если включить — embedder_id mismatch проверка
+# применится и к anti-spoof модели.
+enabled  = false
+# model    = "/var/lib/fastauth/models/antispoof.onnx"
+# threshold = 0.7
+
+[auth]
+default_timeout_ms = 2000
+
+[log]
+level                    = "info"     # debug | info | notice | warn | error
+log_failed_attempts      = true
+log_successful_attempts  = false
+
+[storage]
+users_dir = "/var/lib/fastauth/users"

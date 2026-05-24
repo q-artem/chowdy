@@ -20,6 +20,7 @@
 
 #include <systemd/sd-daemon.h>
 
+#include "common/config.hpp"
 #include "common/logging.hpp"
 #include "daemon/enroll_session.hpp"
 #include "daemon/enrollment_store.hpp"
@@ -48,14 +49,40 @@ std::optional<fastauth::common::log::Level> parse_level(std::string_view s) {
 } // namespace
 
 int main(int argc, char** argv) {
+    // 1. Pre-scan CLI for --config so file load happens with the right path.
+    std::string config_path = "/etc/fastauth/config.toml";
+    for (int i = 1; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--config" && i + 1 < argc) {
+            config_path = argv[++i];
+        }
+    }
+    fastauth::common::config::AppConfig acfg;
+    try {
+        acfg = fastauth::common::config::load(config_path);
+    } catch (const std::exception& e) {
+        std::cerr << "config: " << e.what() << "\n";
+        return 2;
+    }
+    fastauth::common::log::set_min_level(acfg.log.level);
+
+    // 2. Seed runtime config from the file, then let CLI overrides win.
     fastauth::daemon::ServerConfig srv_cfg;
     srv_cfg.auth_socket_path = "/run/fastauth/auth.sock";
     srv_cfg.mgmt_socket_path = "/run/fastauth/mgmt.sock";
 
     fastauth::daemon::PipelineConfig pl_cfg;
-    pl_cfg.detector_model = "/var/lib/fastauth/models/detector.onnx";
-    pl_cfg.embedder_model = "/var/lib/fastauth/models/embedder.onnx";
-    std::string users_dir = "/var/lib/fastauth/users";
+    pl_cfg.detector_model            = acfg.recognition.detector_model;
+    pl_cfg.embedder_model            = acfg.recognition.embedder_model;
+    pl_cfg.detector_conf_threshold   = acfg.recognition.detector_conf_threshold;
+    pl_cfg.enroll_quality_min        = acfg.recognition.enroll_quality_min;
+    pl_cfg.camera.device             = acfg.camera.device;
+    pl_cfg.camera.width              = acfg.camera.width;
+    pl_cfg.camera.height             = acfg.camera.height;
+    pl_cfg.camera.fps                = acfg.camera.fps;
+    pl_cfg.dark_threshold            = acfg.camera.dark_threshold;
+    pl_cfg.camera_policy             = acfg.camera.policy;
+    pl_cfg.idle_keep_ms              = acfg.camera.idle_keep_ms;
+    std::string users_dir            = acfg.storage.users_dir;
 
     for (int i = 1; i < argc; ++i) {
         std::string_view a = argv[i];
@@ -63,12 +90,15 @@ int main(int argc, char** argv) {
             if (i + 1 >= argc) { std::cerr << "missing value for " << what << "\n"; std::exit(2); }
             return std::string(argv[++i]);
         };
-        if      (a == "--auth-socket") srv_cfg.auth_socket_path = next("--auth-socket");
+        if      (a == "--config")      { ++i; /* already consumed */ }
+        else if (a == "--auth-socket") srv_cfg.auth_socket_path = next("--auth-socket");
         else if (a == "--mgmt-socket") srv_cfg.mgmt_socket_path = next("--mgmt-socket");
         else if (a == "--users-dir")   users_dir = next("--users-dir");
         else if (a == "--detector")    pl_cfg.detector_model = next("--detector");
         else if (a == "--embedder")    pl_cfg.embedder_model = next("--embedder");
         else if (a == "--device")      pl_cfg.camera.device = next("--device");
+        else if (a == "--camera-policy") pl_cfg.camera_policy = next("--camera-policy");
+        else if (a == "--idle-keep-ms")  pl_cfg.idle_keep_ms = std::atoi(next("--idle-keep-ms").c_str());
         else if (a == "--log-level") {
             auto lvl = parse_level(next("--log-level"));
             if (!lvl) { std::cerr << "bad log level\n"; return 2; }
@@ -77,9 +107,10 @@ int main(int argc, char** argv) {
         else if (a == "--foreground") { /* no-op for now */ }
         else if (a == "-h" || a == "--help") {
             std::cout << "usage: " << argv[0]
-                      << " [--auth-socket PATH] [--mgmt-socket PATH]\n"
+                      << " [--config PATH] [--auth-socket PATH] [--mgmt-socket PATH]\n"
                          "       [--users-dir DIR] [--detector PATH] [--embedder PATH]\n"
-                         "       [--device PATH] [--log-level LVL] [--foreground]\n";
+                         "       [--device PATH] [--camera-policy lazy|warm|idle_keep]\n"
+                         "       [--idle-keep-ms N] [--log-level LVL] [--foreground]\n";
             return 0;
         }
         else { std::cerr << "unknown arg: " << a << "\n"; return 2; }

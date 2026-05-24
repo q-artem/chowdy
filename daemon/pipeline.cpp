@@ -17,6 +17,25 @@ Pipeline::Pipeline(const PipelineConfig& cfg)
     common::log::info("models loaded",
         {{"detector_id", std::to_string(detector_.model_id())},
          {"embedder_id", std::to_string(embedder_.model_id())}});
+
+    if (cfg_.camera_policy == "warm") {
+        // Eager open — the very first auth pays nothing for cold open.
+        try { ensure_camera_open(); }
+        catch (const std::exception& e) {
+            common::log::warn("warm open failed; will retry on first request",
+                {{"err", e.what()}});
+        }
+    }
+    if (cfg_.camera_policy == "idle_keep" && cfg_.idle_keep_ms > 0) {
+        idle_thread_ = std::thread(&Pipeline::idle_keeper_loop, this);
+    }
+}
+
+Pipeline::~Pipeline() {
+    idle_stop_.store(true);
+    idle_cv_.notify_all();
+    if (idle_thread_.joinable()) idle_thread_.join();
+    release_camera();
 }
 
 void Pipeline::ensure_camera_open() {
@@ -33,6 +52,32 @@ void Pipeline::release_camera() {
     common::log::info("camera released");
 }
 
+void Pipeline::idle_keeper_loop() {
+    using clock = std::chrono::steady_clock;
+    const auto idle_window = std::chrono::milliseconds(cfg_.idle_keep_ms);
+    while (!idle_stop_.load()) {
+        std::unique_lock<std::mutex> lk(idle_cv_mu_);
+        // Wake up at half the idle window so the closing reaction is at most
+        // 1.5× the configured value.
+        idle_cv_.wait_for(lk, idle_window / 2,
+                          [&]{ return idle_stop_.load(); });
+        if (idle_stop_.load()) break;
+
+        auto last_ns = last_use_ns_.load();
+        if (last_ns == 0) continue;
+        auto last_tp = clock::time_point(clock::duration(last_ns));
+        if (clock::now() - last_tp >= idle_window) {
+            std::lock_guard<std::mutex> mu(mu_);
+            if (camera_.is_open()) {
+                common::log::info("idle_keep: closing camera",
+                    {{"after_ms", std::to_string(cfg_.idle_keep_ms)}});
+                camera_.close();
+                frames_since_open_ = 0;
+            }
+        }
+    }
+}
+
 uint32_t Pipeline::embedder_model_id() const noexcept {
     return embedder_.model_id();
 }
@@ -41,6 +86,8 @@ FrameOutcome Pipeline::process_one_frame(std::chrono::milliseconds capture_timeo
                                          bool run_embedder) {
     FrameOutcome out;
     ensure_camera_open();
+    last_use_ns_.store(
+        std::chrono::steady_clock::now().time_since_epoch().count());
     cv::Mat frame = camera_.capture(capture_timeout);
     if (frame.empty()) return out;          // captured=false
     out.captured = true;

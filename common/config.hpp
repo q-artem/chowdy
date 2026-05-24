@@ -1,0 +1,70 @@
+// /etc/fastauth/config.toml — parsed once at daemon start.
+//
+// Missing file is fine — defaults below kick in. Bad TOML aborts the daemon
+// so a typo never silently uses the wrong device. CLI flags from
+// daemon/main.cpp take precedence over the file (they're set after load()
+// returns).
+
+#pragma once
+
+#include <filesystem>
+#include <string>
+
+#include "common/logging.hpp"
+
+namespace fastauth::common::config {
+
+struct CameraSection {
+    std::string device         = "/dev/video2";
+    int         width          = 640;
+    int         height         = 360;
+    int         fps            = 30;
+    double      dark_threshold = 25.0;
+    std::string policy         = "idle_keep";   // lazy | warm | idle_keep
+    int         idle_keep_ms   = 10000;
+};
+
+struct RecognitionSection {
+    std::string detector_model            = "/var/lib/fastauth/models/detector.onnx";
+    std::string embedder_model            = "/var/lib/fastauth/models/embedder.onnx";
+    float       detector_conf_threshold   = 0.5f;
+    float       similarity_floor          = 0.40f;
+    float       enroll_quality_min        = 0.10f;
+};
+
+struct AntiSpoofSection {
+    bool        enabled    = false;
+    std::string model;
+    float       threshold  = 0.7f;
+};
+
+struct AuthSection {
+    int default_timeout_ms  = 2000;
+};
+
+struct LogSection {
+    log::Level level                   = log::Level::Info;
+    bool       log_failed_attempts     = true;
+    bool       log_successful_attempts = false;
+};
+
+struct StorageSection {
+    std::string users_dir = "/var/lib/fastauth/users";
+};
+
+struct AppConfig {
+    CameraSection      camera;
+    RecognitionSection recognition;
+    AntiSpoofSection   antispoof;
+    AuthSection        auth;
+    LogSection         log;
+    StorageSection     storage;
+};
+
+// Try to load /etc/fastauth/config.toml (or the supplied path). If the file
+// is missing returns defaults. Throws std::runtime_error on parse errors so
+// a misconfigured daemon refuses to start instead of silently using the
+// wrong device.
+AppConfig load(const std::filesystem::path& path = "/etc/fastauth/config.toml");
+
+} // namespace fastauth::common::config

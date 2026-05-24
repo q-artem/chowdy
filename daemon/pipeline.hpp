@@ -3,11 +3,14 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <thread>
 
 #include <opencv2/core.hpp>
 #include <onnxruntime_cxx_api.h>
@@ -41,6 +44,13 @@ struct PipelineConfig {
     // On this IR sensor the §7 formula clamps too aggressively — see M3
     // findings. 0.10 is the empirical floor.
     float                 enroll_quality_min      = 0.10f;
+
+    // Camera policy (DESIGN §6):
+    //   "warm"       — open at start, never close
+    //   "idle_keep"  — close after `idle_keep_ms` ms of no use (default)
+    //   "lazy"       — close immediately after every request
+    std::string           camera_policy   = "idle_keep";
+    int                   idle_keep_ms    = 10000;
 };
 
 struct FrameOutcome {
@@ -55,6 +65,7 @@ struct FrameOutcome {
 class Pipeline {
 public:
     explicit Pipeline(const PipelineConfig& cfg);
+    ~Pipeline();
 
     const PipelineConfig& config() const noexcept { return cfg_; }
 
@@ -79,6 +90,8 @@ public:
     std::mutex& mutex() noexcept { return mu_; }
 
 private:
+    void idle_keeper_loop();
+
     Ort::Env              env_;
     PipelineConfig        cfg_;
     Camera                camera_;
@@ -86,6 +99,15 @@ private:
     Embedder              embedder_;
     int                   frames_since_open_ = 0;
     std::mutex            mu_;
+    std::atomic<std::chrono::steady_clock::time_point::rep> last_use_ns_{0};
+
+    // Background thread that closes the camera after idle_keep_ms ms of
+    // inactivity. Only started when policy == "idle_keep" and
+    // idle_keep_ms > 0.
+    std::thread                  idle_thread_;
+    std::atomic<bool>            idle_stop_{false};
+    std::condition_variable      idle_cv_;
+    std::mutex                   idle_cv_mu_;
 };
 
 // Quality scoring (DESIGN.md §7). Face-crop sharpness is via variance of
