@@ -74,6 +74,7 @@ proto::AnyResponse handle_auth(const Context& ctx, const proto::AuthRequest& req
 
     // Serialise camera access across connections.
     std::lock_guard<std::mutex> lock(ctx.pipeline->mutex());
+    auto cam_scope = ctx.pipeline->request_scope();   // closes camera on lazy
 
     const auto budget = std::chrono::milliseconds(req.timeout_ms > 0 ? req.timeout_ms : 2000);
     const auto deadline = t0 + budget;

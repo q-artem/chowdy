@@ -106,6 +106,10 @@ proto::AnyResponse handle_frame(const Context& ctx, const proto::EnrollFrameRequ
 proto::AnyResponse handle_finish(const Context& ctx, const proto::EnrollFinishRequest& r) {
     if (!ctx.enroll_sessions || !ctx.store || !ctx.pipeline)
         return make_err(r.request_id, proto::reason::internal_error);
+    // Enroll is a multi-request flow — we deliberately keep the camera open
+    // across enroll_start / enroll_frame to avoid paying cold-open per frame.
+    // Closing happens here, at finish.
+    auto cam_scope = ctx.pipeline->request_scope();   // closes camera on lazy
 
     EnrollSession* s = ctx.enroll_sessions->get(r.session, ctx.peer.uid);
     if (!s) return make_err(r.request_id, proto::reason::peer_denied, "unknown session");

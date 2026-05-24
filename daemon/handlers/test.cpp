@@ -24,6 +24,7 @@ proto::AnyResponse handle_test(const Context& ctx, const proto::TestRequest& req
     }
 
     std::lock_guard<std::mutex> lock(ctx.pipeline->mutex());
+    auto cam_scope = ctx.pipeline->request_scope();   // closes camera on lazy
 
     const auto deadline = t0 + std::chrono::milliseconds(req.timeout_ms > 0
                                                          ? req.timeout_ms : 3000);

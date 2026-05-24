@@ -89,6 +89,17 @@ public:
     // through safely. Pipeline state is otherwise single-owner.
     std::mutex& mutex() noexcept { return mu_; }
 
+    // RAII helper for handler request bodies. On "lazy" policy its destructor
+    // closes the camera; for "warm" / "idle_keep" it's a no-op. Declare AFTER
+    // the lock_guard on mutex() so unwinding releases camera before mutex.
+    struct RequestScope {
+        Pipeline& p;
+        ~RequestScope() {
+            if (p.cfg_.camera_policy == "lazy") p.release_camera();
+        }
+    };
+    [[nodiscard]] RequestScope request_scope() noexcept { return RequestScope{*this}; }
+
 private:
     void idle_keeper_loop();
 
