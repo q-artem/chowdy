@@ -32,7 +32,7 @@ backup=('etc/chowdy/config.toml')
 install=chowdy.install
 
 source=("$pkgname-$pkgver.tar.gz::https://github.com/q-artem/chowdy/archive/v$pkgver.tar.gz")
-sha256sums=('421e42497e7acd8607792e4d8d54ba59b4b1bf80b7e243322d31b4d93cc20787')
+sha256sums=('2517b4a1ac0008dcf518f909bbd3772fc493fae745d3a771eb9336e0ab544788')
 
 build() {
     cd "$srcdir/$pkgname-$pkgver"

@@ -18,6 +18,6 @@ pkgbase = chowdy
 	depends = tomlplusplus
 	backup = etc/chowdy/config.toml
 	source = chowdy-0.1.0.tar.gz::https://github.com/q-artem/chowdy/archive/v0.1.0.tar.gz
-	sha256sums = 421e42497e7acd8607792e4d8d54ba59b4b1bf80b7e243322d31b4d93cc20787
+	sha256sums = 2517b4a1ac0008dcf518f909bbd3772fc493fae745d3a771eb9336e0ab544788
 
 pkgname = chowdy
