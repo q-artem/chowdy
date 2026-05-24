@@ -55,4 +55,5 @@ models/*.onnx
 # makepkg artifacts in packaging/arch/
 packaging/arch/src/
 packaging/arch/pkg/
+packaging/arch/chowdy/
 packaging/arch/*.pkg.tar.zst
