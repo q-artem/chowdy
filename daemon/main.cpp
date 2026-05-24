@@ -11,12 +11,16 @@
 // binding ourselves (see fastauthd.socket — auth first, mgmt second).
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 
 #include <systemd/sd-daemon.h>
 
@@ -153,9 +157,35 @@ int main(int argc, char** argv) {
              {"embedder",  pl_cfg.embedder_model.string()}});
         ::sd_notify(0, "READY=1");
 
+        // Watchdog ping. systemd unit declares WatchdogSec=30s; we ping at
+        // half-period so a single missed tick doesn't kill the daemon. Pings
+        // come from a dedicated thread so a stuck accept loop or stuck
+        // pipeline (e.g. wedged V4L2 ioctl) will legitimately fail the
+        // watchdog and trigger a Restart=on-failure cycle.
+        std::atomic<bool> wd_stop{false};
+        std::mutex        wd_mu;
+        std::condition_variable wd_cv;
+        uint64_t usec = 0;
+        std::thread wd_thread;
+        if (::sd_watchdog_enabled(0, &usec) > 0 && usec > 0) {
+            const auto half = std::chrono::microseconds(usec / 2);
+            wd_thread = std::thread([&, half]{
+                while (!wd_stop.load()) {
+                    ::sd_notify(0, "WATCHDOG=1");
+                    std::unique_lock<std::mutex> lk(wd_mu);
+                    wd_cv.wait_for(lk, half, [&]{ return wd_stop.load(); });
+                }
+            });
+            fastauth::common::log::info("watchdog ping armed",
+                {{"period_us", std::to_string(usec)}});
+        }
+
         server.run();
 
         ::sd_notify(0, "STOPPING=1");
+        wd_stop.store(true);
+        wd_cv.notify_all();
+        if (wd_thread.joinable()) wd_thread.join();
         g_server.store(nullptr);
     } catch (const std::exception& e) {
         fastauth::common::log::error("fatal", {{"err", e.what()}});
