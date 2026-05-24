@@ -5,6 +5,7 @@ add_executable(fastauthd
     models.cpp
     pipeline.cpp
     enrollment_store.cpp
+    enroll_session.cpp
     handlers/test.cpp
     handlers/auth.cpp
     handlers/enroll.cpp

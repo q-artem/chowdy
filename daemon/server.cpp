@@ -35,8 +35,10 @@ void mark_close_on_exec(int fd) {
 
 } // namespace
 
-Server::Server(ServerConfig cfg, Pipeline* pipeline, EnrollmentStore* store)
-    : cfg_(std::move(cfg)), pipeline_(pipeline), store_(store) {
+Server::Server(ServerConfig cfg, Pipeline* pipeline, EnrollmentStore* store,
+               EnrollSessionManager* enroll_sessions)
+    : cfg_(std::move(cfg)), pipeline_(pipeline), store_(store),
+      enroll_sessions_(enroll_sessions) {
     if (cfg_.auth_socket_fd >= 0) auth_listen_ = adopt_listen_fd(cfg_.auth_socket_fd);
     else                          auth_listen_ = common::listen_unix(cfg_.auth_socket_path, cfg_.auth_socket_mode);
 
@@ -133,11 +135,12 @@ void Server::handle_connection(common::Fd conn, SockKind kind) {
     }
 
     handlers::Context ctx{
-        .peer         = peer,
-        .conn_fd      = conn.get(),
-        .is_auth_sock = (kind == SockKind::Auth),
-        .pipeline     = pipeline_,
-        .store        = store_,
+        .peer            = peer,
+        .conn_fd         = conn.get(),
+        .is_auth_sock    = (kind == SockKind::Auth),
+        .pipeline        = pipeline_,
+        .store           = store_,
+        .enroll_sessions = enroll_sessions_,
     };
 
     AnyRequest req;

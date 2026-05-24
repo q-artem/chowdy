@@ -15,6 +15,7 @@ namespace fastauth::daemon {
 
 class Pipeline;
 class EnrollmentStore;
+class EnrollSessionManager;
 
 struct ServerConfig {
     std::string auth_socket_path;
@@ -29,7 +30,8 @@ struct ServerConfig {
 
 class Server {
 public:
-    Server(ServerConfig cfg, Pipeline* pipeline, EnrollmentStore* store);
+    Server(ServerConfig cfg, Pipeline* pipeline, EnrollmentStore* store,
+           EnrollSessionManager* enroll_sessions);
     ~Server();
 
     Server(const Server&)            = delete;
@@ -45,8 +47,9 @@ private:
     void handle_connection(common::Fd conn, SockKind kind);
 
     ServerConfig            cfg_;
-    Pipeline*               pipeline_ = nullptr;
-    EnrollmentStore*        store_    = nullptr;
+    Pipeline*               pipeline_       = nullptr;
+    EnrollmentStore*        store_          = nullptr;
+    EnrollSessionManager*   enroll_sessions_ = nullptr;
     common::Fd              auth_listen_;
     common::Fd              mgmt_listen_;
     std::atomic<bool>       stopping_{false};

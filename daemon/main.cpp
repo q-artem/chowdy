@@ -21,6 +21,7 @@
 #include <systemd/sd-daemon.h>
 
 #include "common/logging.hpp"
+#include "daemon/enroll_session.hpp"
 #include "daemon/enrollment_store.hpp"
 #include "daemon/pipeline.hpp"
 #include "daemon/server.hpp"
@@ -109,7 +110,8 @@ int main(int argc, char** argv) {
     try {
         fastauth::daemon::Pipeline pipeline(pl_cfg);
         fastauth::daemon::EnrollmentStore store(users_dir);
-        fastauth::daemon::Server server(srv_cfg, &pipeline, &store);
+        fastauth::daemon::EnrollSessionManager sessions;
+        fastauth::daemon::Server server(srv_cfg, &pipeline, &store, &sessions);
         g_server.store(&server);
 
         fastauth::common::log::notice("fastauthd ready",
