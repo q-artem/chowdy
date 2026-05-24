@@ -61,7 +61,9 @@ Server::~Server() { stop(); for (auto& t : threads_) if (t.joinable()) t.join();
 void Server::stop() {
     stopping_.store(true);
     char b = 1;
-    if (wake_w_.valid()) ::write(wake_w_.get(), &b, 1);
+    // Best-effort wake-up; if the pipe is gone we already torn down,
+    // so ignoring the result is the right thing here.
+    if (wake_w_.valid()) (void)!::write(wake_w_.get(), &b, 1);
 }
 
 void Server::run() {
