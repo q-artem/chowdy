@@ -1,0 +1,75 @@
+# Maintainer: Artem Pshenichnikov <Stodvalista@yandex.ru>
+#
+# fastauth — резидентный C++ daemon + PAM модуль для face-аутентификации
+# по IR-камере. Альтернатива Howdy с холодным auth < 400 мс. См. DESIGN.md.
+
+pkgname=fastauth
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Resident face authentication daemon for Linux (IR-only, PAM)'
+arch=('x86_64')
+url='https://github.com/your-username/fastauth'
+license=('MIT')
+depends=(
+    'opencv'
+    'libsodium'
+    'systemd-libs'
+    'pam'
+    'onnxruntime'
+    'nlohmann-json'
+    'tomlplusplus'
+)
+makedepends=(
+    'cmake'
+    'ninja'
+    'pkgconf'
+)
+backup=('etc/fastauth/config.toml')
+install=fastauth.install
+
+# Источник: для рабочего PKGBUILD замените на git tag (см. README).
+# Для локальной сборки можно использовать `source=("$pkgname::git+file:///path/to/repo")`.
+source=("$pkgname-$pkgver.tar.gz::file://${PWD}/../../")  # placeholder
+sha256sums=('SKIP')
+
+build() {
+    cd "$srcdir"
+    # Если источник — git: cd "$pkgname"
+    cmake -S . -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DFASTAUTH_BUILD_TOOLS=OFF \
+        -DFASTAUTH_BUILD_TESTS=OFF \
+        -DFASTAUTH_BUILD_PAM=ON
+    cmake --build build
+}
+
+package() {
+    cd "$srcdir"
+    # cd "$pkgname"
+
+    # Бинарники
+    install -Dm0755 build/daemon/fastauthd       "$pkgdir/usr/bin/fastauthd"
+    install -Dm0755 build/cli/fastauth-cli       "$pkgdir/usr/bin/fastauth-cli"
+
+    # PAM модуль
+    install -Dm0755 build/pam/pam_fastauth.so    "$pkgdir/usr/lib/security/pam_fastauth.so"
+
+    # systemd units
+    install -Dm0644 systemd/fastauthd.service    "$pkgdir/usr/lib/systemd/system/fastauthd.service"
+    install -Dm0644 systemd/fastauthd.socket     "$pkgdir/usr/lib/systemd/system/fastauthd.socket"
+    install -Dm0644 systemd/tmpfiles.d/fastauth.conf \
+                                                 "$pkgdir/usr/lib/tmpfiles.d/fastauth.conf"
+
+    # Дефолтный конфиг (пользователь может править — добавлено в backup)
+    install -Dm0644 etc/fastauth/config.toml.example \
+                                                 "$pkgdir/etc/fastauth/config.toml"
+
+    # Документация
+    install -Dm0644 README.md                    "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm0644 DESIGN.md                    "$pkgdir/usr/share/doc/$pkgname/DESIGN.md"
+    install -Dm0644 pam/README.md                "$pkgdir/usr/share/doc/$pkgname/PAM-INSTALL.md"
+    install -Dm0644 models/README.md             "$pkgdir/usr/share/doc/$pkgname/MODELS.md"
+    install -Dm0644 systemd/README.md            "$pkgdir/usr/share/doc/$pkgname/SYSTEMD.md"
+    install -Dm0644 LICENSE                      "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

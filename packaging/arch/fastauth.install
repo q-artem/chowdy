@@ -1,0 +1,92 @@
+## fastauth.install — pacman hooks.
+##
+## DESIGN.md §9 says fastauthd never runs as root: we create a system user
+## `fastauth` with supplementary group `video` (for /dev/video2 access).
+
+_fastauth_user() {
+    getent group fastauth >/dev/null \
+        || groupadd --system fastauth
+    getent passwd fastauth >/dev/null \
+        || useradd --system --gid fastauth --groups video \
+                   --home-dir /var/lib/fastauth --no-create-home \
+                   --shell /usr/bin/nologin fastauth
+    # Add fastauth to `video` group if it pre-existed without it.
+    if ! id -nG fastauth | grep -qw video; then
+        usermod -aG video fastauth
+    fi
+}
+
+_fastauth_dirs() {
+    install -d -o root     -g fastauth -m 0750 /var/lib/fastauth
+    install -d -o root     -g fastauth -m 0750 /var/lib/fastauth/models
+    install -d -o fastauth -g fastauth -m 0700 /var/lib/fastauth/users
+}
+
+post_install() {
+    _fastauth_user
+    _fastauth_dirs
+    systemd-tmpfiles --create fastauth.conf 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+
+    cat <<MSG
+
+  fastauth установлен. Что нужно сделать ВРУЧНУЮ:
+
+    1. Скачать ONNX модели в /var/lib/fastauth/models/
+       (см. /usr/share/doc/fastauth/MODELS.md)
+         sudo install -m 0640 -o root -g fastauth path/to/scrfd_500m_bnkps.onnx \\
+                              /var/lib/fastauth/models/detector.onnx
+         sudo install -m 0640 -o root -g fastauth path/to/w600k_mbf.onnx \\
+                              /var/lib/fastauth/models/embedder.onnx
+
+    2. Включить и запустить демон (через socket activation):
+         sudo systemctl enable --now fastauthd.socket
+         systemctl status fastauthd
+
+    3. Энроллмент своего лица:
+         fastauth-cli enroll --label main
+
+    4. Проверка:
+         fastauth-cli auth-test
+
+    5. Только когда CLI auth работает — настроить PAM для sudo по
+       чек-листу из /usr/share/doc/fastauth/PAM-INSTALL.md. ОБЯЗАТЕЛЬНО
+       открой второй TTY с root до правки /etc/pam.d/*.
+
+  Config: /etc/fastauth/config.toml (помечен как backup — твои правки
+  переживут upgrade пакета).
+
+MSG
+}
+
+post_upgrade() {
+    _fastauth_user
+    _fastauth_dirs
+    systemd-tmpfiles --create fastauth.conf 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+
+    echo
+    echo "  fastauth обновлён. Перезапусти демон:"
+    echo "    sudo systemctl restart fastauthd"
+    echo
+    echo "  Если апдейт включал новую модель — energy все .enc файлы пользователей"
+    echo "  получат embedder_id mismatch при auth, нужен пере-enroll."
+    echo
+}
+
+pre_remove() {
+    systemctl --no-reload disable --now fastauthd.socket 2>/dev/null || true
+    systemctl --no-reload disable --now fastauthd.service 2>/dev/null || true
+}
+
+post_remove() {
+    systemctl daemon-reload 2>/dev/null || true
+
+    echo
+    echo "  fastauth удалён. Дополнительно ВРУЧНУЮ:"
+    echo "    sudo userdel fastauth"
+    echo "    sudo groupdel fastauth"
+    echo "    sudo rm -rf /var/lib/fastauth   # удалит модели и энроллменты"
+    echo "    проверь /etc/pam.d/* — убери строки pam_fastauth.so"
+    echo
+}
