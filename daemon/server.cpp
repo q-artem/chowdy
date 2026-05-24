@@ -136,7 +136,14 @@ void Server::handle_connection(common::Fd conn, SockKind kind) {
     json req_json;
     try { req_json = common::read_message(conn.get()); }
     catch (const std::exception& e) {
-        common::log::debug("read_message failed", {{"err", e.what()}});
+        // Bumped to warn — silent drop here is exactly what showed up as
+        // "peer closed mid-frame" on the CLI side and was invisible in the
+        // journal.
+        common::log::warn("read_message failed",
+            {{"err",      e.what()},
+             {"sock",     kind == SockKind::Auth ? "auth" : "mgmt"},
+             {"peer_uid", std::to_string(peer.uid)},
+             {"peer_pid", std::to_string(peer.pid)}});
         return;
     }
 
@@ -184,7 +191,11 @@ void Server::handle_connection(common::Fd conn, SockKind kind) {
 
     try { common::write_message(conn.get(), serialize_response(resp)); }
     catch (const std::exception& e) {
-        common::log::debug("write_message failed", {{"err", e.what()}});
+        common::log::warn("write_message failed",
+            {{"err",      e.what()},
+             {"sock",     kind == SockKind::Auth ? "auth" : "mgmt"},
+             {"peer_uid", std::to_string(peer.uid)},
+             {"peer_pid", std::to_string(peer.pid)}});
     }
 }
 

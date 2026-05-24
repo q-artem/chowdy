@@ -46,3 +46,7 @@ models/*.onnx
 
 # Logs
 *.log
+
+# Ad-hoc benchmark scripts (developer-local)
+/test.sh
+/test2.sh

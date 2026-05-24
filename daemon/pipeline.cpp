@@ -81,12 +81,20 @@ void Pipeline::release_camera() {
 
 void Pipeline::prewarm_async() {
     if (cfg_.camera_policy != "lazy") return;
+    // Throttle: if the pipeline mutex is busy a request is already in flight
+    // (handler running, or detached close still draining). Don't pile yet
+    // another detached thread onto the contention — the in-flight request
+    // will leave the camera in the right state for the next one.
+    if (!mu_.try_lock()) return;
+    const bool already_streaming = camera_.is_streaming();
+    mu_.unlock();
+    if (already_streaming) return;
+
     std::thread([this]{
         std::lock_guard<std::mutex> g(mu_);
         try { ensure_camera_open(); }
         catch (const std::exception& e) {
-            common::log::debug("prewarm: ensure_camera_open threw",
-                {{"err", e.what()}});
+            common::log::warn("prewarm failed", {{"err", e.what()}});
         }
     }).detach();
 }
