@@ -80,9 +80,9 @@ proto::AnyResponse handle_auth(const Context& ctx, const proto::AuthRequest& req
 
     int attempts = 0;
     int faces_seen = 0;
+    int captures_seen = 0;
     double best_sim_overall = -1.0;
     std::string best_label;
-    std::string last_reason = proto::reason::no_face;
 
     while (clock_type::now() < deadline) {
         auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -99,9 +99,10 @@ proto::AnyResponse handle_auth(const Context& ctx, const proto::AuthRequest& req
         }
         ++attempts;
 
-        if (!out.captured)                 { last_reason = proto::reason::timeout;       continue; }
+        if (!out.captured) continue;
+        ++captures_seen;
         if (out.brightness < ctx.pipeline->config().dark_threshold) continue;   // emitter off-frame
-        if (!out.has_face)                 { last_reason = proto::reason::no_face;       continue; }
+        if (!out.has_face)                 continue;
         ++faces_seen;
         if (!out.embedding) continue;
 
@@ -126,17 +127,24 @@ proto::AnyResponse handle_auth(const Context& ctx, const proto::AuthRequest& req
                                  u.label, best_for_label, /*success=*/true);
             }
         }
-        last_reason = proto::reason::low_confidence;
     }
+
+    // Choose the most informative final reason based on what actually happened:
+    //   faces_seen > 0    -> we saw the face, just under threshold
+    //   captures_seen > 0 -> camera worked but never had a face (or all dark)
+    //   else              -> couldn't get any frame in time
+    std::string final_reason = proto::reason::timeout;
+    if (faces_seen > 0)        final_reason = proto::reason::low_confidence;
+    else if (captures_seen > 0) final_reason = proto::reason::no_face;
 
     common::log::info("auth not matched",
         {{"uid", std::to_string(req.uid)},
-         {"reason", last_reason},
+         {"reason", final_reason},
          {"attempts", std::to_string(attempts)},
          {"faces", std::to_string(faces_seen)},
          {"best_sim", std::to_string(best_sim_overall)}});
 
-    return make_resp(req, last_reason, ms_since(t0),
+    return make_resp(req, final_reason, ms_since(t0),
                      best_label, best_sim_overall > 0 ? best_sim_overall : 0.0,
                      /*success=*/false);
 }

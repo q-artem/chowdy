@@ -20,7 +20,7 @@ struct CameraSection {
     int         height         = 360;
     int         fps            = 30;
     double      dark_threshold = 25.0;
-    std::string policy         = "idle_keep";   // lazy | warm | idle_keep
+    std::string policy         = "lazy";        // lazy | warm | idle_keep
     int         idle_keep_ms   = 10000;
 };
 
