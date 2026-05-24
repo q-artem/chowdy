@@ -1,11 +1,11 @@
-// M3 end-to-end pipeline test for fastauth.
+// M3 end-to-end pipeline test for chowdy.
 //
 // Live camera loop: open /dev/video2 → on each frame run SCRFD → align →
 // MobileFaceNet → cosine-match against a stored enrollment, exit success
 // when the match passes threshold. Two modes:
 //
 //   --enroll [-n N]    capture N quality-filtered frames, store as
-//                       ~/.cache/fastauth/test_embedding.bin (FA01 format,
+//                       ~/.cache/chowdy/test_embedding.bin (FA01 format,
 //                       see DESIGN.md §8).
 //   --auth (default)   load enrollment, loop until match or timeout.
 //
@@ -14,10 +14,10 @@
 // daemon/pipeline.cpp and common/encoding.cpp on M4-M5.
 //
 // Usage:
-//   fastauth-pipeline-test --enroll [-n 8]
-//   fastauth-pipeline-test [--auth]
+//   chowdy-pipeline-test --enroll [-n 8]
+//   chowdy-pipeline-test [--auth]
 //   options: --device /dev/video2, --models models/,
-//            --emb-file ~/.cache/fastauth/test_embedding.bin,
+//            --emb-file ~/.cache/chowdy/test_embedding.bin,
 //            --timeout-ms 2000
 
 #include <algorithm>
@@ -589,7 +589,7 @@ std::string default_emb_path() {
         }
         base = std::string(home) + "/.cache";
     }
-    return base + "/fastauth/test_embedding.bin";
+    return base + "/chowdy/test_embedding.bin";
 }
 
 struct Args {
@@ -634,14 +634,14 @@ int main(int argc, char** argv) {
     const std::string det_path = args.models_dir + "/scrfd_500m_bnkps.onnx";
     const std::string emb_path = args.models_dir + "/w600k_mbf.onnx";
 
-    std::cout << "fastauth-pipeline-test  mode="
+    std::cout << "chowdy-pipeline-test  mode="
               << (args.mode == Args::Mode::Enroll ? "enroll" : "auth")
               << "  device=" << args.device
               << "  emb_file=" << args.emb_path << "\n";
 
     // === one-time setup ===
     auto t_setup = clock_type::now();
-    Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "fastauth-m3");
+    Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "chowdy-m3");
     Ort::SessionOptions sopts;
     sopts.SetIntraOpNumThreads(2);
     sopts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);

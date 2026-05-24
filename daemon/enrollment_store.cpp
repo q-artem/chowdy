@@ -10,7 +10,7 @@
 
 #include "common/logging.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 namespace {
 
@@ -120,4 +120,4 @@ int EnrollmentStore::remove_all(uid_t uid) {
     return n;
 }
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

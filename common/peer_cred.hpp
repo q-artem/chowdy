@@ -6,7 +6,7 @@
 
 #include <sys/types.h>
 
-namespace fastauth::common {
+namespace chowdy::common {
 
 struct PeerCred {
     pid_t pid;
@@ -17,4 +17,4 @@ struct PeerCred {
 // Returns the credentials of the peer connected to `fd`. Throws on error.
 PeerCred get_peer_cred(int fd);
 
-} // namespace fastauth::common
+} // namespace chowdy::common

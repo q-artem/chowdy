@@ -10,7 +10,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-namespace fastauth::common {
+namespace chowdy::common {
 
 void Fd::close() noexcept {
     if (fd_ >= 0) {
@@ -143,4 +143,4 @@ void write_message(int fd, const nlohmann::json& j) {
     write_exact(fd, s.data(), s.size());
 }
 
-} // namespace fastauth::common
+} // namespace chowdy::common

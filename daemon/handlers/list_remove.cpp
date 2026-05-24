@@ -3,7 +3,7 @@
 #include "common/logging.hpp"
 #include "daemon/enrollment_store.hpp"
 
-namespace fastauth::daemon::handlers {
+namespace chowdy::daemon::handlers {
 
 proto::AnyResponse handle_list(const Context& ctx, const proto::ListRequest& req) {
     proto::ListResponse r;
@@ -37,4 +37,4 @@ proto::AnyResponse handle_remove(const Context& ctx, const proto::RemoveRequest&
     return r;
 }
 
-} // namespace fastauth::daemon::handlers
+} // namespace chowdy::daemon::handlers

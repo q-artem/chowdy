@@ -1,9 +1,9 @@
-add_executable(fastauth-cli
+add_executable(chowdy-cli
     main.cpp
 )
-target_include_directories(fastauth-cli PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(fastauth-cli PRIVATE
-    fastauth_common
-    fastauth_proto
+target_include_directories(chowdy-cli PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chowdy-cli PRIVATE
+    chowdy_common
+    chowdy_proto
 )
-fastauth_apply_compile_options(fastauth-cli)
+chowdy_apply_compile_options(chowdy-cli)

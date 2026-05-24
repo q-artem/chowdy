@@ -1,4 +1,4 @@
-# /etc/fastauth/config.toml — пример конфига для fastauthd.
+# /etc/chowdy/config.toml — пример конфига для chowdyd.
 #
 # Все секции опциональны. Любое отсутствующее поле берёт default,
 # зашитый в common/config.hpp.
@@ -34,8 +34,8 @@ camera_policy  = "lazy"
 idle_keep_ms   = 10000
 
 [recognition]
-detector_model          = "/var/lib/fastauth/models/detector.onnx"
-embedder_model          = "/var/lib/fastauth/models/embedder.onnx"
+detector_model          = "/var/lib/chowdy/models/detector.onnx"
+embedder_model          = "/var/lib/chowdy/models/embedder.onnx"
 detector_conf_threshold = 0.5
 similarity_floor        = 0.40
 # IR-сенсор даёт низкий variance(Laplacian), поэтому формула quality
@@ -47,7 +47,7 @@ enroll_quality_min      = 0.10
 # Откладываем до v2. Если включить — embedder_id mismatch проверка
 # применится и к anti-spoof модели.
 enabled  = false
-# model    = "/var/lib/fastauth/models/antispoof.onnx"
+# model    = "/var/lib/chowdy/models/antispoof.onnx"
 # threshold = 0.7
 
 [auth]
@@ -59,4 +59,4 @@ log_failed_attempts      = true
 log_successful_attempts  = false
 
 [storage]
-users_dir = "/var/lib/fastauth/users"
+users_dir = "/var/lib/chowdy/users"

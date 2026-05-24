@@ -1,7 +1,7 @@
-# Common compile options shared by every fastauth target.
+# Common compile options shared by every chowdy target.
 # Keep this header-light so it can be safely included multiple times.
 
-function(fastauth_apply_compile_options target)
+function(chowdy_apply_compile_options target)
     get_target_property(_type ${target} TYPE)
     if(_type STREQUAL "INTERFACE_LIBRARY")
         target_compile_features(${target} INTERFACE cxx_std_20)
@@ -24,7 +24,7 @@ function(fastauth_apply_compile_options target)
 endfunction()
 
 # C variant for the PAM module.
-function(fastauth_apply_c_compile_options target)
+function(chowdy_apply_c_compile_options target)
     target_compile_features(${target} PUBLIC c_std_17)
     set_target_properties(${target} PROPERTIES
         C_STANDARD 17

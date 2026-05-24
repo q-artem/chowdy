@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-namespace fastauth::common::encoding {
+namespace chowdy::common::encoding {
 
 uint32_t simple_model_id(const std::filesystem::path& model_path) {
     std::ifstream f(model_path, std::ios::binary);
@@ -137,4 +137,4 @@ std::optional<EnrollmentFile> load_enrollment(const std::filesystem::path& path)
     return e;
 }
 
-} // namespace fastauth::common::encoding
+} // namespace chowdy::common::encoding

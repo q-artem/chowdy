@@ -8,7 +8,7 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 namespace {
 
@@ -296,4 +296,4 @@ common::encoding::Embedding Embedder::embed_aligned(const cv::Mat& grey,
     return emb;
 }
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

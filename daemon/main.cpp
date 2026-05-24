@@ -1,4 +1,4 @@
-// fastauthd entry point.
+// chowdyd entry point.
 //
 // CLI / env contract:
 //   --auth-socket PATH    Override AF_UNIX path for the PAM-facing socket.
@@ -8,7 +8,7 @@
 //                         (otherwise stderr fallback only when TTY).
 //
 // systemd activation: when LISTEN_FDS is set we adopt those fds instead of
-// binding ourselves (see fastauthd.socket — auth first, mgmt second).
+// binding ourselves (see chowdyd.socket — auth first, mgmt second).
 
 #include <atomic>
 #include <chrono>
@@ -33,15 +33,15 @@
 
 namespace {
 
-std::atomic<fastauth::daemon::Server*> g_server{nullptr};
+std::atomic<chowdy::daemon::Server*> g_server{nullptr};
 
 void on_signal(int) {
     auto* s = g_server.load();
     if (s) s->stop();
 }
 
-std::optional<fastauth::common::log::Level> parse_level(std::string_view s) {
-    using L = fastauth::common::log::Level;
+std::optional<chowdy::common::log::Level> parse_level(std::string_view s) {
+    using L = chowdy::common::log::Level;
     if (s == "debug")  return L::Debug;
     if (s == "info")   return L::Info;
     if (s == "notice") return L::Notice;
@@ -54,27 +54,27 @@ std::optional<fastauth::common::log::Level> parse_level(std::string_view s) {
 
 int main(int argc, char** argv) {
     // 1. Pre-scan CLI for --config so file load happens with the right path.
-    std::string config_path = "/etc/fastauth/config.toml";
+    std::string config_path = "/etc/chowdy/config.toml";
     for (int i = 1; i < argc; ++i) {
         if (std::string_view(argv[i]) == "--config" && i + 1 < argc) {
             config_path = argv[++i];
         }
     }
-    fastauth::common::config::AppConfig acfg;
+    chowdy::common::config::AppConfig acfg;
     try {
-        acfg = fastauth::common::config::load(config_path);
+        acfg = chowdy::common::config::load(config_path);
     } catch (const std::exception& e) {
         std::cerr << "config: " << e.what() << "\n";
         return 2;
     }
-    fastauth::common::log::set_min_level(acfg.log.level);
+    chowdy::common::log::set_min_level(acfg.log.level);
 
     // 2. Seed runtime config from the file, then let CLI overrides win.
-    fastauth::daemon::ServerConfig srv_cfg;
-    srv_cfg.auth_socket_path = "/run/fastauth/auth.sock";
-    srv_cfg.mgmt_socket_path = "/run/fastauth/mgmt.sock";
+    chowdy::daemon::ServerConfig srv_cfg;
+    srv_cfg.auth_socket_path = "/run/chowdy/auth.sock";
+    srv_cfg.mgmt_socket_path = "/run/chowdy/mgmt.sock";
 
-    fastauth::daemon::PipelineConfig pl_cfg;
+    chowdy::daemon::PipelineConfig pl_cfg;
     pl_cfg.detector_model            = acfg.recognition.detector_model;
     pl_cfg.embedder_model            = acfg.recognition.embedder_model;
     pl_cfg.detector_conf_threshold   = acfg.recognition.detector_conf_threshold;
@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
         else if (a == "--log-level") {
             auto lvl = parse_level(next("--log-level"));
             if (!lvl) { std::cerr << "bad log level\n"; return 2; }
-            fastauth::common::log::set_min_level(*lvl);
+            chowdy::common::log::set_min_level(*lvl);
         }
         else if (a == "--foreground") { /* no-op for now */ }
         else if (a == "-h" || a == "--help") {
@@ -121,15 +121,15 @@ int main(int argc, char** argv) {
     }
 
     // Systemd socket activation: if LISTEN_FDS is set, the listening sockets
-    // are already bound. By convention in fastauthd.socket, slot 0 is auth,
+    // are already bound. By convention in chowdyd.socket, slot 0 is auth,
     // slot 1 is mgmt.
     int n = ::sd_listen_fds(1);
     if (n == 2) {
         srv_cfg.auth_socket_fd = SD_LISTEN_FDS_START + 0;
         srv_cfg.mgmt_socket_fd = SD_LISTEN_FDS_START + 1;
-        fastauth::common::log::info("adopting systemd sockets");
+        chowdy::common::log::info("adopting systemd sockets");
     } else if (n != 0) {
-        fastauth::common::log::warn("unexpected LISTEN_FDS",
+        chowdy::common::log::warn("unexpected LISTEN_FDS",
             {{"n", std::to_string(n)}});
     }
 
@@ -143,13 +143,13 @@ int main(int argc, char** argv) {
     ::signal(SIGPIPE, SIG_IGN);
 
     try {
-        fastauth::daemon::Pipeline pipeline(pl_cfg);
-        fastauth::daemon::EnrollmentStore store(users_dir);
-        fastauth::daemon::EnrollSessionManager sessions;
-        fastauth::daemon::Server server(srv_cfg, &pipeline, &store, &sessions);
+        chowdy::daemon::Pipeline pipeline(pl_cfg);
+        chowdy::daemon::EnrollmentStore store(users_dir);
+        chowdy::daemon::EnrollSessionManager sessions;
+        chowdy::daemon::Server server(srv_cfg, &pipeline, &store, &sessions);
         g_server.store(&server);
 
-        fastauth::common::log::notice("fastauthd ready",
+        chowdy::common::log::notice("chowdyd ready",
             {{"auth_sock", srv_cfg.auth_socket_path},
              {"mgmt_sock", srv_cfg.mgmt_socket_path},
              {"users_dir", users_dir},
@@ -176,7 +176,7 @@ int main(int argc, char** argv) {
                     wd_cv.wait_for(lk, half, [&]{ return wd_stop.load(); });
                 }
             });
-            fastauth::common::log::info("watchdog ping armed",
+            chowdy::common::log::info("watchdog ping armed",
                 {{"period_us", std::to_string(usec)}});
         }
 
@@ -188,9 +188,9 @@ int main(int argc, char** argv) {
         if (wd_thread.joinable()) wd_thread.join();
         g_server.store(nullptr);
     } catch (const std::exception& e) {
-        fastauth::common::log::error("fatal", {{"err", e.what()}});
+        chowdy::common::log::error("fatal", {{"err", e.what()}});
         return 1;
     }
-    fastauth::common::log::notice("fastauthd shutting down");
+    chowdy::common::log::notice("chowdyd shutting down");
     return 0;
 }

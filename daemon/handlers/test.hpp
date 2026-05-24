@@ -3,13 +3,13 @@
 #include "common/peer_cred.hpp"
 #include "proto/messages.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 class Pipeline;
 class EnrollmentStore;
 class EnrollSessionManager;
 }
 
-namespace fastauth::daemon::handlers {
+namespace chowdy::daemon::handlers {
 
 // Shared between every handler. Created fresh per connection in server.cpp.
 // Pipeline/Store/EnrollSessionManager are owned by the Server and outlive
@@ -26,4 +26,4 @@ struct Context {
 
 proto::AnyResponse handle_test(const Context& ctx, const proto::TestRequest& req);
 
-} // namespace fastauth::daemon::handlers
+} // namespace chowdy::daemon::handlers

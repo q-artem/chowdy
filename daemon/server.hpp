@@ -1,4 +1,4 @@
-// fastauthd's accept loop. Owns the two listening sockets (auth + mgmt),
+// chowdyd's accept loop. Owns the two listening sockets (auth + mgmt),
 // spawns one short-lived thread per connection, and dispatches requests to
 // handlers/ by message type.
 
@@ -11,7 +11,7 @@
 
 #include "common/ipc.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 class Pipeline;
 class EnrollmentStore;
@@ -58,4 +58,4 @@ private:
     common::Fd              wake_w_;
 };
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

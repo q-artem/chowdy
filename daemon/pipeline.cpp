@@ -7,10 +7,10 @@
 
 #include "common/logging.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 Pipeline::Pipeline(const PipelineConfig& cfg)
-    : env_(ORT_LOGGING_LEVEL_WARNING, "fastauthd"),
+    : env_(ORT_LOGGING_LEVEL_WARNING, "chowdyd"),
       cfg_(cfg),
       detector_(env_, cfg.detector_model, cfg.intra_op_threads),
       embedder_(env_, cfg.embedder_model, cfg.intra_op_threads) {
@@ -240,4 +240,4 @@ double frame_quality(const cv::Mat& grey, const Detection& det, double sharpness
     return conf * h_frac * sharp;
 }
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

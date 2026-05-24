@@ -10,7 +10,7 @@
 #include "daemon/enrollment_store.hpp"
 #include "daemon/pipeline.hpp"
 
-namespace fastauth::daemon::handlers {
+namespace chowdy::daemon::handlers {
 
 namespace {
 
@@ -161,4 +161,4 @@ proto::AnyResponse handle_enroll(
     }, req);
 }
 
-} // namespace fastauth::daemon::handlers
+} // namespace chowdy::daemon::handlers

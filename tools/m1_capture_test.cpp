@@ -1,4 +1,4 @@
-// M1 capture test for fastauth.
+// M1 capture test for chowdy.
 //
 // Opens an IR V4L2 device, requests GREY 640x360, streams frames via mmap,
 // drops the first few warmup frames, then writes the rest as PGM files
@@ -10,7 +10,7 @@
 // all of this with a proper Camera class in daemon/camera.cpp.
 //
 // Usage:
-//   fastauth-capture-test [device] [num-frames]
+//   chowdy-capture-test [device] [num-frames]
 //   device:     default /dev/video2
 //   num-frames: default 10 (3 of which are silently dropped as warmup)
 
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     const int num_frames =
         (argc > 2) ? std::atoi(argv[2]) : 10;
 
-    std::cout << "fastauth-capture-test\n"
+    std::cout << "chowdy-capture-test\n"
               << "  device:      " << device << "\n"
               << "  frames:      " << num_frames << " (drop first " << kWarmupFrames << ")\n"
               << "  format:      GREY " << kWidth << "x" << kHeight
@@ -245,7 +245,7 @@ int main(int argc, char** argv) {
 
         if (!is_warmup) {
             char path[128];
-            std::snprintf(path, sizeof(path), "/tmp/fastauth-frame-%02d.pgm", saved);
+            std::snprintf(path, sizeof(path), "/tmp/chowdy-frame-%02d.pgm", saved);
             write_pgm(path, px, kWidth, kHeight);
             ++saved;
         }
@@ -254,7 +254,7 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "\n[+" << ms_since(t_open) << " ms] capture loop done, saved "
-              << saved << " frame(s) to /tmp/fastauth-frame-*.pgm\n";
+              << saved << " frame(s) to /tmp/chowdy-frame-*.pgm\n";
     if (t_first_frame != clock_type::time_point{}) {
         std::cout << "time from open to first frame: "
                   << std::chrono::duration<double, std::milli>(

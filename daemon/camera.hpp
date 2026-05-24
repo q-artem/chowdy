@@ -1,4 +1,4 @@
-// V4L2 capture front-end for fastauthd.
+// V4L2 capture front-end for chowdyd.
 //
 // Promotes the throwaway code from tools/m3_pipeline_test.cpp to a proper
 // RAII class. GREY-only (the target IR sensor doesn't offer anything else,
@@ -18,7 +18,7 @@
 
 #include <opencv2/core.hpp>
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 struct CameraConfig {
     std::string device      = "/dev/video2";
@@ -68,4 +68,4 @@ private:
     std::vector<MmapBuf>  buffers_;
 };
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-namespace fastauth::common::encoding {
+namespace chowdy::common::encoding {
 
 inline constexpr size_t   kEmbDim       = 512;
 inline constexpr uint32_t kFileMagic    = 0x31304146u;  // "FA01"
@@ -65,4 +65,4 @@ void save_enrollment(const std::filesystem::path& path, const EnrollmentFile& e)
 // caller already knows the file might not exist (no enrollment yet).
 std::optional<EnrollmentFile> load_enrollment(const std::filesystem::path& path);
 
-} // namespace fastauth::common::encoding
+} // namespace chowdy::common::encoding

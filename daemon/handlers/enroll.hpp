@@ -5,7 +5,7 @@
 
 #include <variant>
 
-namespace fastauth::daemon::handlers {
+namespace chowdy::daemon::handlers {
 
 // Single entry point handling all three enrollment messages.
 proto::AnyResponse handle_enroll(
@@ -35,4 +35,4 @@ inline proto::AnyResponse handle_enroll(const Context& ctx,
                                            proto::EnrollFinishRequest>{r});
 }
 
-} // namespace fastauth::daemon::handlers
+} // namespace chowdy::daemon::handlers

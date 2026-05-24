@@ -19,7 +19,7 @@
 
 #include "common/encoding.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 struct Detection {
     cv::Rect2f                  box;
@@ -81,4 +81,4 @@ private:
     uint32_t                           model_id_ = 0;
 };
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

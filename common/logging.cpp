@@ -13,7 +13,7 @@
 
 #include <systemd/sd-journal.h>
 
-namespace fastauth::common::log {
+namespace chowdy::common::log {
 
 namespace {
 
@@ -64,7 +64,7 @@ void log_line(Level lvl, std::string_view msg,
     kvs.reserve(fields.size() + 3);
     kvs.emplace_back("MESSAGE=" + std::string(msg));
     kvs.emplace_back("PRIORITY=" + std::to_string(journal_priority(lvl)));
-    kvs.emplace_back("SERVICE=fastauthd");
+    kvs.emplace_back("SERVICE=chowdyd");
     for (const auto& [k, v] : fields) {
         std::string field;
         field.reserve(k.size() + 1 + v.size());
@@ -100,4 +100,4 @@ void log_line(Level lvl, std::string_view msg,
     }
 }
 
-} // namespace fastauth::common::log
+} // namespace chowdy::common::log

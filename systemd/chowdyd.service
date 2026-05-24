@@ -1,25 +1,25 @@
 [Unit]
-Description=fastauth face authentication daemon
+Description=chowdy face authentication daemon
 Documentation=https://github.com/loskutovp/chowdy
-Requires=fastauthd.socket
-After=fastauthd.socket
+Requires=chowdyd.socket
+After=chowdyd.socket
 
 [Service]
 Type=notify
 NotifyAccess=main
-ExecStart=/usr/bin/fastauthd
+ExecStart=/usr/bin/chowdyd
 Restart=on-failure
 RestartSec=2s
 WatchdogSec=30s
 
 # === hardening (DESIGN.md §9) ===
-User=fastauth
-Group=fastauth
+User=chowdy
+Group=chowdy
 SupplementaryGroups=video
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/fastauth /run/fastauth
+ReadWritePaths=/var/lib/chowdy /run/chowdy
 PrivateTmp=true
 PrivateDevices=false            # we need /dev/video2
 DeviceAllow=char-video4linux rw

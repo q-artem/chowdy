@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(fastauth
+project(chowdy
     VERSION 0.1.0
     DESCRIPTION "Fast face-auth daemon for Linux, IR-only"
     LANGUAGES C CXX
@@ -10,9 +10,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Generate compile_commands.json" FORCE)
 
-option(FASTAUTH_BUILD_TOOLS "Build milestone testbeds in tools/" ON)
-option(FASTAUTH_BUILD_PAM   "Build pam_fastauth.so"               ON)
-option(FASTAUTH_BUILD_TESTS "Build unit tests (GoogleTest)"       OFF)
+option(CHOWDY_BUILD_TOOLS "Build milestone testbeds in tools/" ON)
+option(CHOWDY_BUILD_PAM   "Build pam_chowdy.so"               ON)
+option(CHOWDY_BUILD_TESTS "Build unit tests (GoogleTest)"       OFF)
 
 include(cmake/CompileOptions.cmake)
 
@@ -31,18 +31,18 @@ add_subdirectory(common)
 add_subdirectory(daemon)
 add_subdirectory(cli)
 
-if(FASTAUTH_BUILD_PAM)
+if(CHOWDY_BUILD_PAM)
     add_subdirectory(pam)
 endif()
 
-if(FASTAUTH_BUILD_TOOLS)
+if(CHOWDY_BUILD_TOOLS)
     add_subdirectory(tools)
 endif()
 
-if(FASTAUTH_BUILD_TESTS)
+if(CHOWDY_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
 
 # Convenience: print where the artifacts are once configured.
-message(STATUS "fastauth: BUILD_TOOLS=${FASTAUTH_BUILD_TOOLS} BUILD_PAM=${FASTAUTH_BUILD_PAM} BUILD_TESTS=${FASTAUTH_BUILD_TESTS}")
+message(STATUS "chowdy: BUILD_TOOLS=${CHOWDY_BUILD_TOOLS} BUILD_PAM=${CHOWDY_BUILD_PAM} BUILD_TESTS=${CHOWDY_BUILD_TESTS}")

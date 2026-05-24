@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # reinstall-dev.sh — uninstall + install подряд. Удобно при изменении
-# дефолтов в etc/fastauth/config.toml.example или после правок в коде.
+# дефолтов в etc/chowdy/config.toml.example или после правок в коде.
 #
-# /var/lib/fastauth/ (модели + энроллменты) сохраняется — uninstall
+# /var/lib/chowdy/ (модели + энроллменты) сохраняется — uninstall
 # идёт без --purge.
 
 set -euo pipefail
@@ -23,10 +23,10 @@ bash "$HERE/install-dev.sh"
 
 echo
 echo "=== restart демона ==="
-systemctl restart fastauthd.socket 2>/dev/null || true
-systemctl restart fastauthd        2>/dev/null || true
+systemctl restart chowdyd.socket 2>/dev/null || true
+systemctl restart chowdyd        2>/dev/null || true
 
 echo
 echo "готово. проверь:"
-echo "    grep camera_policy /etc/fastauth/config.toml"
-echo "    fastauth-cli auth-test"
+echo "    grep camera_policy /etc/chowdy/config.toml"
+echo "    chowdy-cli auth-test"

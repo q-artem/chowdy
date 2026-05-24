@@ -20,7 +20,7 @@
 #include "daemon/handlers/list_remove.hpp"
 #include "daemon/pipeline.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 namespace {
 
@@ -114,7 +114,7 @@ void Server::accept_loop(int listen_fd, SockKind kind) {
 }
 
 void Server::handle_connection(common::Fd conn, SockKind kind) {
-    using namespace fastauth::proto;
+    using namespace chowdy::proto;
     common::set_timeout(conn.get(),
                         std::chrono::milliseconds(5000),
                         std::chrono::milliseconds(5000));
@@ -199,4 +199,4 @@ void Server::handle_connection(common::Fd conn, SockKind kind) {
     }
 }
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

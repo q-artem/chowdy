@@ -1,4 +1,4 @@
-// M2 detection + embedding test for fastauth.
+// M2 detection + embedding test for chowdy.
 //
 // Loads the SCRFD-500MF detector and the MobileFaceNet embedder, runs them
 // on a single PGM IR frame produced by M1 (tools/m1_capture_test.cpp),
@@ -13,9 +13,9 @@
 //   github.com/deepinsight/insightface/blob/master/python-package/insightface/model_zoo/scrfd.py
 //
 // Usage:
-//   fastauth-detect-test [detector.onnx] [embedder.onnx] [input.pgm]
+//   chowdy-detect-test [detector.onnx] [embedder.onnx] [input.pgm]
 //   defaults: models/scrfd_500m_bnkps.onnx, models/w600k_mbf.onnx,
-//             /tmp/fastauth-frame-00.pgm
+//             /tmp/chowdy-frame-00.pgm
 
 #include <algorithm>
 #include <array>
@@ -313,15 +313,15 @@ int main(int argc, char** argv) {
     const std::string embedder_path =
         (argc > 2) ? argv[2] : "models/w600k_mbf.onnx";
     const std::string input_path =
-        (argc > 3) ? argv[3] : "/tmp/fastauth-frame-00.pgm";
+        (argc > 3) ? argv[3] : "/tmp/chowdy-frame-00.pgm";
 
-    std::cout << "fastauth-detect-test\n"
+    std::cout << "chowdy-detect-test\n"
               << "  detector: " << detector_path << "\n"
               << "  embedder: " << embedder_path << "\n"
               << "  input:    " << input_path << "\n\n";
 
     // === ORT setup ===
-    Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "fastauth-m2");
+    Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "chowdy-m2");
     Ort::SessionOptions sopts;
     sopts.SetIntraOpNumThreads(2);
     sopts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);

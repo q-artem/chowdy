@@ -34,10 +34,10 @@ compile_commands.json
 # Sensitive — see DESIGN.md Section 15 (security)
 *.enc
 *.bin
-.cache/fastauth/
+.cache/chowdy/
 
 # Captured test frames (don't commit faces / IR captures)
-/tmp/fastauth-*
+/tmp/chowdy-*
 tests/fixtures/sample_ir_frames/*.pgm
 tests/fixtures/sample_ir_frames/*.png
 

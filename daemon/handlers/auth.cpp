@@ -9,7 +9,7 @@
 #include "daemon/enrollment_store.hpp"
 #include "daemon/pipeline.hpp"
 
-namespace fastauth::daemon::handlers {
+namespace chowdy::daemon::handlers {
 
 namespace {
 
@@ -21,7 +21,7 @@ double ms_since(clock_type::time_point t0) {
 // SO_PEERCRED gate from DESIGN.md §5: PAM-facing socket only accepts a uid==0
 // caller authenticating any user, OR a self-authenticating caller (uid in the
 // request matches the connecting uid). Connections via mgmt socket can do
-// either form too — useful for fastauth-cli auth-test under the current user.
+// either form too — useful for chowdy-cli auth-test under the current user.
 bool authorise(const Context& ctx, uint32_t req_uid) {
     if (ctx.peer.uid == 0) return true;             // PAM proxying for the user
     return ctx.peer.uid == req_uid;                 // self-auth
@@ -150,4 +150,4 @@ proto::AnyResponse handle_auth(const Context& ctx, const proto::AuthRequest& req
                      /*success=*/false);
 }
 
-} // namespace fastauth::daemon::handlers
+} // namespace chowdy::daemon::handlers

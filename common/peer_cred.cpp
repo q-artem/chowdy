@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-namespace fastauth::common {
+namespace chowdy::common {
 
 PeerCred get_peer_cred(int fd) {
     ucred c{};
@@ -18,4 +18,4 @@ PeerCred get_peer_cred(int fd) {
     return PeerCred{c.pid, c.uid, c.gid};
 }
 
-} // namespace fastauth::common
+} // namespace chowdy::common

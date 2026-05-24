@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # uninstall-dev.sh — снять то что положил install-dev.sh.
-# /var/lib/fastauth (модели + энроллменты) НЕ удаляется по умолчанию —
+# /var/lib/chowdy (модели + энроллменты) НЕ удаляется по умолчанию —
 # передай --purge чтобы стереть.
 
 set -euo pipefail
@@ -13,29 +13,29 @@ fi
 PURGE=0
 [[ "${1:-}" == "--purge" ]] && PURGE=1
 
-systemctl --no-reload disable --now fastauthd.socket  2>/dev/null || true
-systemctl --no-reload disable --now fastauthd.service 2>/dev/null || true
+systemctl --no-reload disable --now chowdyd.socket  2>/dev/null || true
+systemctl --no-reload disable --now chowdyd.service 2>/dev/null || true
 
-rm -f /usr/bin/fastauthd
-rm -f /usr/bin/fastauth-cli
-rm -f /usr/lib/security/pam_fastauth.so
-rm -f /usr/lib/systemd/system/fastauthd.service
-rm -f /usr/lib/systemd/system/fastauthd.socket
-rm -f /usr/lib/tmpfiles.d/fastauth.conf
-rm -f /etc/fastauth/config.toml
-rmdir /etc/fastauth 2>/dev/null || true
+rm -f /usr/bin/chowdyd
+rm -f /usr/bin/chowdy-cli
+rm -f /usr/lib/security/pam_chowdy.so
+rm -f /usr/lib/systemd/system/chowdyd.service
+rm -f /usr/lib/systemd/system/chowdyd.socket
+rm -f /usr/lib/tmpfiles.d/chowdy.conf
+rm -f /etc/chowdy/config.toml
+rmdir /etc/chowdy 2>/dev/null || true
 
 systemctl daemon-reload
 
 if (( PURGE )); then
-    rm -rf /var/lib/fastauth
-    if getent passwd fastauth >/dev/null; then userdel fastauth || true; fi
-    if getent group  fastauth >/dev/null; then groupdel fastauth || true; fi
-    echo "удалил пользователя fastauth и /var/lib/fastauth"
+    rm -rf /var/lib/chowdy
+    if getent passwd chowdy >/dev/null; then userdel chowdy || true; fi
+    if getent group  chowdy >/dev/null; then groupdel chowdy || true; fi
+    echo "удалил пользователя chowdy и /var/lib/chowdy"
 else
-    echo "/var/lib/fastauth/ оставлен (модели + энроллменты)."
+    echo "/var/lib/chowdy/ оставлен (модели + энроллменты)."
     echo "для полной очистки: sudo bash tools/uninstall-dev.sh --purge"
 fi
 
 echo "напоминание: проверь /etc/pam.d/* — если ты руками добавлял"
-echo "pam_fastauth.so в какой-нибудь PAM stack, эти строки нужно убрать ВРУЧНУЮ."
+echo "pam_chowdy.so в какой-нибудь PAM stack, эти строки нужно убрать ВРУЧНУЮ."

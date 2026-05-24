@@ -1,4 +1,4 @@
-// fastauth-cli — пользовательский интерфейс к fastauthd.
+// chowdy-cli — пользовательский интерфейс к chowdyd.
 //
 // Команды:
 //   test            быстрый ping mgmt-сокета: захватывает один кадр и
@@ -30,8 +30,8 @@
 
 namespace {
 
-namespace proto = fastauth::proto;
-namespace common = fastauth::common;
+namespace proto = chowdy::proto;
+namespace common = chowdy::common;
 
 std::string gen_request_id() {
     static thread_local std::mt19937_64 rng{
@@ -111,7 +111,7 @@ int cmd_enroll(const std::string& mgmt, const std::string& label, int n) {
     start.min_frames = std::max(3, n / 2);
     start.max_frames = n;
 
-    std::cout << "Подключение к fastauthd...\n";
+    std::cout << "Подключение к chowdyd...\n";
     auto resp = round_trip(mgmt, nlohmann::json(start), std::chrono::milliseconds{2000});
     if (resp.value("type", "") != "enroll_progress") {
         std::cerr << "ошибка enroll_start: " << resp.dump(2) << "\n";
@@ -176,8 +176,8 @@ void usage(const char* p) {
 } // namespace
 
 int main(int argc, char** argv) {
-    std::string mgmt_sock = "/run/fastauth/mgmt.sock";
-    std::string auth_sock = "/run/fastauth/auth.sock";
+    std::string mgmt_sock = "/run/chowdy/mgmt.sock";
+    std::string auth_sock = "/run/chowdy/auth.sock";
     int i = 1;
     for (; i < argc; ++i) {
         std::string_view a = argv[i];

@@ -1,4 +1,4 @@
-// /etc/fastauth/config.toml — parsed once at daemon start.
+// /etc/chowdy/config.toml — parsed once at daemon start.
 //
 // Missing file is fine — defaults below kick in. Bad TOML aborts the daemon
 // so a typo never silently uses the wrong device. CLI flags from
@@ -12,7 +12,7 @@
 
 #include "common/logging.hpp"
 
-namespace fastauth::common::config {
+namespace chowdy::common::config {
 
 struct CameraSection {
     std::string device         = "/dev/video2";
@@ -25,8 +25,8 @@ struct CameraSection {
 };
 
 struct RecognitionSection {
-    std::string detector_model            = "/var/lib/fastauth/models/detector.onnx";
-    std::string embedder_model            = "/var/lib/fastauth/models/embedder.onnx";
+    std::string detector_model            = "/var/lib/chowdy/models/detector.onnx";
+    std::string embedder_model            = "/var/lib/chowdy/models/embedder.onnx";
     float       detector_conf_threshold   = 0.5f;
     float       similarity_floor          = 0.40f;
     float       enroll_quality_min        = 0.10f;
@@ -49,7 +49,7 @@ struct LogSection {
 };
 
 struct StorageSection {
-    std::string users_dir = "/var/lib/fastauth/users";
+    std::string users_dir = "/var/lib/chowdy/users";
 };
 
 struct AppConfig {
@@ -61,10 +61,10 @@ struct AppConfig {
     StorageSection     storage;
 };
 
-// Try to load /etc/fastauth/config.toml (or the supplied path). If the file
+// Try to load /etc/chowdy/config.toml (or the supplied path). If the file
 // is missing returns defaults. Throws std::runtime_error on parse errors so
 // a misconfigured daemon refuses to start instead of silently using the
 // wrong device.
-AppConfig load(const std::filesystem::path& path = "/etc/fastauth/config.toml");
+AppConfig load(const std::filesystem::path& path = "/etc/chowdy/config.toml");
 
-} // namespace fastauth::common::config
+} // namespace chowdy::common::config

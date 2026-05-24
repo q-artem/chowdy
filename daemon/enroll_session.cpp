@@ -2,7 +2,7 @@
 
 #include <cstdio>
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 namespace {
 constexpr auto kSessionTtl = std::chrono::minutes(5);
@@ -51,4 +51,4 @@ void EnrollSessionManager::reap_expired_locked() {
     }
 }
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

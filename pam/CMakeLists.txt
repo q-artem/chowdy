@@ -1,15 +1,15 @@
-# pam_fastauth.so — minimal C bridge between PAM and fastauthd.
+# pam_chowdy.so — minimal C bridge between PAM and chowdyd.
 # Real implementation lands on M6. For now this is a stub so the build
 # graph is wired up.
 
-add_library(pam_fastauth MODULE
-    pam_fastauth.c
+add_library(pam_chowdy MODULE
+    pam_chowdy.c
 )
-set_target_properties(pam_fastauth PROPERTIES
-    PREFIX ""              # PAM expects "pam_fastauth.so", not "libpam_fastauth.so"
-    OUTPUT_NAME "pam_fastauth"
+set_target_properties(pam_chowdy PROPERTIES
+    PREFIX ""              # PAM expects "pam_chowdy.so", not "libpam_chowdy.so"
+    OUTPUT_NAME "pam_chowdy"
 )
-target_link_libraries(pam_fastauth PRIVATE
+target_link_libraries(pam_chowdy PRIVATE
     PkgConfig::LIBPAM
 )
-fastauth_apply_c_compile_options(pam_fastauth)
+chowdy_apply_c_compile_options(pam_chowdy)

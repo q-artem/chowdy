@@ -19,12 +19,12 @@
 #include "daemon/camera.hpp"
 #include "daemon/models.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 struct PipelineConfig {
     CameraConfig          camera;
-    std::filesystem::path detector_model = "/var/lib/fastauth/models/detector.onnx";
-    std::filesystem::path embedder_model = "/var/lib/fastauth/models/embedder.onnx";
+    std::filesystem::path detector_model = "/var/lib/chowdy/models/detector.onnx";
+    std::filesystem::path embedder_model = "/var/lib/chowdy/models/embedder.onnx";
     int                   intra_op_threads = 4;
 
     // Drop the first N frames after the camera STREAMs on. Originally 3
@@ -144,4 +144,4 @@ private:
 double frame_quality(const cv::Mat& grey, const Detection& det,
                      double sharpness_divisor = 30.0);
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

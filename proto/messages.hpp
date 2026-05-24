@@ -1,4 +1,4 @@
-// IPC message types between PAM/CLI and fastauthd.
+// IPC message types between PAM/CLI and chowdyd.
 //
 // Wire format: length-prefixed JSON.
 //   [u32 big-endian payload length] [UTF-8 JSON bytes]
@@ -18,7 +18,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace fastauth::proto {
+namespace chowdy::proto {
 
 using nlohmann::json;
 
@@ -343,4 +343,4 @@ inline json serialize_response(const AnyResponse& r) {
     return std::visit([](const auto& v) { return json(v); }, r);
 }
 
-} // namespace fastauth::proto
+} // namespace chowdy::proto

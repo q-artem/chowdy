@@ -1,8 +1,8 @@
 // Structured logging via systemd-journal.
 //
 // Falls back to stderr when not running under systemd (e.g. ad-hoc test).
-// All log entries get a `SERVICE=fastauthd` field for easy filtering with
-// `journalctl SERVICE=fastauthd`.
+// All log entries get a `SERVICE=chowdyd` field for easy filtering with
+// `journalctl SERVICE=chowdyd`.
 
 #pragma once
 
@@ -11,7 +11,7 @@
 #include <string_view>
 #include <utility>
 
-namespace fastauth::common::log {
+namespace chowdy::common::log {
 
 enum class Level {
     Debug,
@@ -53,4 +53,4 @@ inline void error(std::string_view m,
     log_line(Level::Error, m, f);
 }
 
-} // namespace fastauth::common::log
+} // namespace chowdy::common::log

@@ -24,7 +24,7 @@
 
 #include "common/encoding.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 struct EnrollSession {
     uid_t                                       uid = 0;
@@ -55,4 +55,4 @@ private:
     uint64_t                                         counter_ = 0;
 };
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

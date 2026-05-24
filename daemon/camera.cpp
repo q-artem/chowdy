@@ -14,7 +14,7 @@
 
 #include "common/logging.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 namespace {
 
@@ -149,4 +149,4 @@ cv::Mat Camera::capture(std::chrono::milliseconds timeout) {
     return copy;
 }
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

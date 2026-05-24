@@ -8,7 +8,7 @@
 #include "daemon/enrollment_store.hpp"
 #include "daemon/pipeline.hpp"
 
-namespace fastauth::daemon::handlers {
+namespace chowdy::daemon::handlers {
 
 proto::AnyResponse handle_test(const Context& ctx, const proto::TestRequest& req) {
     using clock_type = std::chrono::steady_clock;
@@ -78,4 +78,4 @@ proto::AnyResponse handle_test(const Context& ctx, const proto::TestRequest& req
     return r;
 }
 
-} // namespace fastauth::daemon::handlers
+} // namespace chowdy::daemon::handlers

@@ -1,9 +1,9 @@
 // Per-uid enrollment lookup. On-disk layout matches DESIGN.md §8:
 //   <users_dir>/<uid>/<label>.enc
-// All embeddings for a uid live in one directory, owned 0700 by fastauth.
+// All embeddings for a uid live in one directory, owned 0700 by chowdy.
 //
 // The store caches loaded files in memory keyed by uid. A stat-based mtime
-// check keeps the cache from going stale when fastauth-cli rewrites a file.
+// check keeps the cache from going stale when chowdy-cli rewrites a file.
 
 #pragma once
 
@@ -18,7 +18,7 @@
 
 #include "common/encoding.hpp"
 
-namespace fastauth::daemon {
+namespace chowdy::daemon {
 
 struct UserEnrollment {
     std::string                       label;
@@ -57,4 +57,4 @@ private:
     std::unordered_map<uid_t, CacheEntry>       cache_;
 };
 
-} // namespace fastauth::daemon
+} // namespace chowdy::daemon

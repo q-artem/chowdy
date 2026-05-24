@@ -1,4 +1,4 @@
-# pam_fastauth — установка и тестирование
+# pam_chowdy — установка и тестирование
 
 > **Это PAM модуль.** Любая ошибка в конфигурации может оставить тебя без
 > возможности войти в систему. Прочитай Section 16 DESIGN.md и **выполни
@@ -10,18 +10,18 @@
       root через пароль). Не закрывай этот TTY до конца тестирования.
 - [ ] Сделан бэкап:
       `sudo cp -r /etc/pam.d /etc/pam.d.bak.$(date +%Y%m%d-%H%M)`.
-- [ ] `fastauthd.service` уже работает: `systemctl status fastauthd`,
-      `ls -l /run/fastauth/auth.sock` (должно быть `srw-rw---- root fastauth`).
+- [ ] `chowdyd.service` уже работает: `systemctl status chowdyd`,
+      `ls -l /run/chowdy/auth.sock` (должно быть `srw-rw---- root chowdy`).
 - [ ] Минимум один enrollment для твоего uid:
-      `ls /var/lib/fastauth/users/$(id -u)/`.
-- [ ] CLI smoke-test: `fastauth-cli auth-test` уходит в SUCCESS.
+      `ls /var/lib/chowdy/users/$(id -u)/`.
+- [ ] CLI smoke-test: `chowdy-cli auth-test` уходит в SUCCESS.
 
 Только после этого ставим `.so`.
 
 ## Установка модуля
 
 ```sh
-sudo install -m 0755 build/pam/pam_fastauth.so /usr/lib/security/pam_fastauth.so
+sudo install -m 0755 build/pam/pam_chowdy.so /usr/lib/security/pam_chowdy.so
 ```
 
 (`/usr/lib/security/` — стандартный путь для PAM модулей в Arch.
@@ -32,19 +32,19 @@ sudo install -m 0755 build/pam/pam_fastauth.so /usr/lib/security/pam_fastauth.so
 ## Тестирование
 
 Сначала **на `sudo`**, никогда сразу на login. Открой `/etc/pam.d/sudo`
-в редакторе из второго TTY (root) и добавь fastauth **перед** существующей
+в редакторе из второго TTY (root) и добавь chowdy **перед** существующей
 строкой `auth`:
 
 ```pam
-# fastauth — НЕ required, fallback на пароль если модуль не уверен
-auth   sufficient   pam_fastauth.so timeout=2000
+# chowdy — НЕ required, fallback на пароль если модуль не уверен
+auth   sufficient   pam_chowdy.so timeout=2000
 auth   sufficient   pam_unix.so try_first_pass
 auth   include      system-auth
 ```
 
 Параметры модуля:
 - `timeout=MS` — общий бюджет (включая connect + auth pipeline). По умолчанию 2000.
-- `socket=PATH` — переопределить путь к `auth.sock`. По умолчанию `/run/fastauth/auth.sock`.
+- `socket=PATH` — переопределить путь к `auth.sock`. По умолчанию `/run/chowdy/auth.sock`.
 - `debug` — больше деталей в syslog.
 
 В новом терминале (НЕ закрывая root TTY) попробуй:
@@ -62,7 +62,7 @@ sudo cp /etc/pam.d.bak.YYYYMMDD-HHMM/sudo /etc/pam.d/sudo
 
 ## После того как sudo работает
 
-Только тогда можно добавлять fastauth в другие PAM stack'и:
+Только тогда можно добавлять chowdy в другие PAM stack'и:
 - `polkit-1` (графические запросы пароля),
 - `login` (text login, **с особой осторожностью**),
 - `gdm-password` или другой display manager.
@@ -72,16 +72,16 @@ sudo cp /etc/pam.d.bak.YYYYMMDD-HHMM/sudo /etc/pam.d/sudo
 
 ## Отладка
 
-- Логи демона: `journalctl -u fastauthd -f`
-- Логи модуля: `journalctl -t pam_fastauth -f` (после `debug` опции).
-- Прямой CLI тест: `fastauth-cli auth-test`.
-- Если `fastauth-cli` работает, а `sudo` — нет, причина почти всегда в
+- Логи демона: `journalctl -u chowdyd -f`
+- Логи модуля: `journalctl -t pam_chowdy -f` (после `debug` опции).
+- Прямой CLI тест: `chowdy-cli auth-test`.
+- Если `chowdy-cli` работает, а `sudo` — нет, причина почти всегда в
   правах на сокет (PAM модуль работает под root, должен быть в группе с
-  `auth.sock`, у нас `0660 root:fastauth` так что root имеет доступ через
+  `auth.sock`, у нас `0660 root:chowdy` так что root имеет доступ через
   ownership).
 
 ## Откат
 
-Просто удали строку `auth ... pam_fastauth.so` из PAM конфига, или
+Просто удали строку `auth ... pam_chowdy.so` из PAM конфига, или
 восстанови бэкап `/etc/pam.d/`. Демон при этом можно оставить — он
 просто никто не будет звать.

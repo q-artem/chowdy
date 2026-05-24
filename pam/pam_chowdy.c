@@ -1,6 +1,6 @@
 /*
- * pam_fastauth.so — PAM authentication module that delegates face auth
- * to the resident fastauthd daemon over a unix socket.
+ * pam_chowdy.so — PAM authentication module that delegates face auth
+ * to the resident chowdyd daemon over a unix socket.
  *
  * Design rules from DESIGN.md §3, §10, §16:
  *   - Must be `sufficient`, never `required`. We respect that: any
@@ -8,16 +8,16 @@
  *     failure) returns PAM_AUTHINFO_UNAVAIL so the next stack entry
  *     (usually pam_unix) gets to ask for a password.
  *   - We never read enrollments, never open the camera, never talk to
- *     anything other than /run/fastauth/auth.sock. Linux file
- *     permissions on that socket (0660 root:fastauth) and the daemon's
+ *     anything other than /run/chowdy/auth.sock. Linux file
+ *     permissions on that socket (0660 root:chowdy) and the daemon's
  *     SO_PEERCRED check do the access control for us.
  *   - We carry minimal state across the connection: connect, write one
  *     request, read one response, close. No retries.
  *
  * Module options (set on the PAM line, e.g.
- *   auth sufficient pam_fastauth.so timeout=2000 socket=/run/fastauth/auth.sock):
+ *   auth sufficient pam_chowdy.so timeout=2000 socket=/run/chowdy/auth.sock):
  *     timeout=MS   total deadline including connect, default 2000
- *     socket=PATH  override auth socket path, default /run/fastauth/auth.sock
+ *     socket=PATH  override auth socket path, default /run/chowdy/auth.sock
  *     debug        print extra detail to syslog
  */
 
@@ -45,7 +45,7 @@
 #include <security/pam_modules.h>
 #include <security/pam_ext.h>
 
-#define DEFAULT_SOCKET   "/run/fastauth/auth.sock"
+#define DEFAULT_SOCKET   "/run/chowdy/auth.sock"
 #define DEFAULT_TIMEOUT  2000   /* milliseconds */
 #define RECV_BUF_SIZE    8192
 
@@ -241,7 +241,7 @@ static int do_auth(pam_handle_t *pamh, uid_t uid,
     resp[rlen] = 0;
     close(fd);
 
-    if (o->debug) pam_syslog(pamh, LOG_DEBUG, "fastauth resp: %s", resp);
+    if (o->debug) pam_syslog(pamh, LOG_DEBUG, "chowdy resp: %s", resp);
 
     json_string(resp, "reason", reason_out, reason_len);
     int success = json_bool(resp, "success");
@@ -266,7 +266,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 
     if (success == 1) {
         pam_syslog(pamh, LOG_NOTICE,
-                   "fastauth granted for %s (reason=%s)",
+                   "chowdy granted for %s (reason=%s)",
                    username, reason[0] ? reason : "matched");
         return PAM_SUCCESS;
     }
@@ -275,14 +275,14 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
          * via the next stack entry (the recommended config is `sufficient`,
          * so PAM_AUTH_ERR here just means "didn't pass", not "denied"). */
         pam_syslog(pamh, LOG_NOTICE,
-                   "fastauth denied for %s (reason=%s)",
+                   "chowdy denied for %s (reason=%s)",
                    username, reason[0] ? reason : "no_match");
         return PAM_AUTH_ERR;
     }
     /* success == -1: we couldn't talk to the daemon at all (socket gone,
      * timeout, garbled response). Hand off to the next module without
      * pretending we know. */
-    if (o.debug) pam_syslog(pamh, LOG_DEBUG, "fastauth unavailable");
+    if (o.debug) pam_syslog(pamh, LOG_DEBUG, "chowdy unavailable");
     return PAM_AUTHINFO_UNAVAIL;
 }
 

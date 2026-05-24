@@ -7,7 +7,7 @@
 
 #include "common/logging.hpp"
 
-namespace fastauth::common::config {
+namespace chowdy::common::config {
 
 namespace {
 
@@ -89,4 +89,4 @@ AppConfig load(const std::filesystem::path& path) {
     return cfg;
 }
 
-} // namespace fastauth::common::config
+} // namespace chowdy::common::config

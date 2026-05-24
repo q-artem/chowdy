@@ -1,4 +1,4 @@
-// Unix-socket IPC primitives for fastauthd.
+// Unix-socket IPC primitives for chowdyd.
 //
 // All messages are framed as:
 //   [uint32_t big-endian payload length] [JSON UTF-8 bytes]
@@ -19,7 +19,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace fastauth::common {
+namespace chowdy::common {
 
 class IpcError : public std::runtime_error {
 public:
@@ -67,4 +67,4 @@ nlohmann::json read_message(int fd, size_t max_payload = 1 << 20);
 // Write a length-prefixed JSON message to `fd`.
 void write_message(int fd, const nlohmann::json& j);
 
-} // namespace fastauth::common
+} // namespace chowdy::common

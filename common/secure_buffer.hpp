@@ -18,7 +18,7 @@
 
 #include <sys/mman.h>
 
-namespace fastauth::common {
+namespace chowdy::common {
 
 template <typename T>
 class SecureBuffer {
@@ -75,4 +75,4 @@ private:
     bool   locked_ = false;
 };
 
-} // namespace fastauth::common
+} // namespace chowdy::common
