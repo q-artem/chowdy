@@ -29,8 +29,8 @@ IR-only pipeline. Цель — холодный auth ≤ 400 мс (Howdy сей�
 | M1 | V4L2 capture (`tools/m1_capture_test.cpp`) | ✅ done — "M1 findings" в DESIGN.md Приложение A |
 | M2 | ONNX Runtime + один кадр (`tools/m2_detect_test.cpp`) | ✅ done — "M2 findings" в DESIGN.md Приложение A. Total warm: ~40 мс. |
 | M3 | Полный pipeline e2e (`tools/m3_pipeline_test.cpp`) | ✅ done — "M3 findings" в DESIGN.md. Live MATCH 503 мс cold, sim ~0.87, negative test чисто. |
-| M4 | IPC + daemon + systemd | следующий |
-| M5 | Auth handler | — |
+| M4 | IPC + daemon skeleton + systemd units | ✅ done — common/, proto/, daemon/, cli/, systemd/ wired, test/auth-test stubs. |
+| M5 | Real auth handler (camera+models+pipeline+store) | ✅ done — "M5 findings" в DESIGN.md. Warm auth ~35 мс через daemon. |
 | M6 | PAM модуль (**особо осторожно**, см. Section 16 чеклист) | — |
 | M7 | Enrollment CLI | — |
 | M8 | Hardening + QoL | — |

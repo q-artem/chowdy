@@ -21,6 +21,8 @@
 #include <systemd/sd-daemon.h>
 
 #include "common/logging.hpp"
+#include "daemon/enrollment_store.hpp"
+#include "daemon/pipeline.hpp"
 #include "daemon/server.hpp"
 
 namespace {
@@ -45,9 +47,14 @@ std::optional<fastauth::common::log::Level> parse_level(std::string_view s) {
 } // namespace
 
 int main(int argc, char** argv) {
-    fastauth::daemon::ServerConfig cfg;
-    cfg.auth_socket_path = "/run/fastauth/auth.sock";
-    cfg.mgmt_socket_path = "/run/fastauth/mgmt.sock";
+    fastauth::daemon::ServerConfig srv_cfg;
+    srv_cfg.auth_socket_path = "/run/fastauth/auth.sock";
+    srv_cfg.mgmt_socket_path = "/run/fastauth/mgmt.sock";
+
+    fastauth::daemon::PipelineConfig pl_cfg;
+    pl_cfg.detector_model = "/var/lib/fastauth/models/detector.onnx";
+    pl_cfg.embedder_model = "/var/lib/fastauth/models/embedder.onnx";
+    std::string users_dir = "/var/lib/fastauth/users";
 
     for (int i = 1; i < argc; ++i) {
         std::string_view a = argv[i];
@@ -55,8 +62,12 @@ int main(int argc, char** argv) {
             if (i + 1 >= argc) { std::cerr << "missing value for " << what << "\n"; std::exit(2); }
             return std::string(argv[++i]);
         };
-        if      (a == "--auth-socket") cfg.auth_socket_path = next("--auth-socket");
-        else if (a == "--mgmt-socket") cfg.mgmt_socket_path = next("--mgmt-socket");
+        if      (a == "--auth-socket") srv_cfg.auth_socket_path = next("--auth-socket");
+        else if (a == "--mgmt-socket") srv_cfg.mgmt_socket_path = next("--mgmt-socket");
+        else if (a == "--users-dir")   users_dir = next("--users-dir");
+        else if (a == "--detector")    pl_cfg.detector_model = next("--detector");
+        else if (a == "--embedder")    pl_cfg.embedder_model = next("--embedder");
+        else if (a == "--device")      pl_cfg.camera.device = next("--device");
         else if (a == "--log-level") {
             auto lvl = parse_level(next("--log-level"));
             if (!lvl) { std::cerr << "bad log level\n"; return 2; }
@@ -65,8 +76,9 @@ int main(int argc, char** argv) {
         else if (a == "--foreground") { /* no-op for now */ }
         else if (a == "-h" || a == "--help") {
             std::cout << "usage: " << argv[0]
-                      << " [--auth-socket PATH] [--mgmt-socket PATH]"
-                      << " [--log-level debug|info|notice|warn|error] [--foreground]\n";
+                      << " [--auth-socket PATH] [--mgmt-socket PATH]\n"
+                         "       [--users-dir DIR] [--detector PATH] [--embedder PATH]\n"
+                         "       [--device PATH] [--log-level LVL] [--foreground]\n";
             return 0;
         }
         else { std::cerr << "unknown arg: " << a << "\n"; return 2; }
@@ -77,8 +89,8 @@ int main(int argc, char** argv) {
     // slot 1 is mgmt.
     int n = ::sd_listen_fds(1);
     if (n == 2) {
-        cfg.auth_socket_fd = SD_LISTEN_FDS_START + 0;
-        cfg.mgmt_socket_fd = SD_LISTEN_FDS_START + 1;
+        srv_cfg.auth_socket_fd = SD_LISTEN_FDS_START + 0;
+        srv_cfg.mgmt_socket_fd = SD_LISTEN_FDS_START + 1;
         fastauth::common::log::info("adopting systemd sockets");
     } else if (n != 0) {
         fastauth::common::log::warn("unexpected LISTEN_FDS",
@@ -95,12 +107,17 @@ int main(int argc, char** argv) {
     ::signal(SIGPIPE, SIG_IGN);
 
     try {
-        fastauth::daemon::Server server(cfg);
+        fastauth::daemon::Pipeline pipeline(pl_cfg);
+        fastauth::daemon::EnrollmentStore store(users_dir);
+        fastauth::daemon::Server server(srv_cfg, &pipeline, &store);
         g_server.store(&server);
 
         fastauth::common::log::notice("fastauthd ready",
-            {{"auth_sock", cfg.auth_socket_path},
-             {"mgmt_sock", cfg.mgmt_socket_path}});
+            {{"auth_sock", srv_cfg.auth_socket_path},
+             {"mgmt_sock", srv_cfg.mgmt_socket_path},
+             {"users_dir", users_dir},
+             {"detector",  pl_cfg.detector_model.string()},
+             {"embedder",  pl_cfg.embedder_model.string()}});
         ::sd_notify(0, "READY=1");
 
         server.run();
