@@ -57,3 +57,6 @@ packaging/arch/src/
 packaging/arch/pkg/
 packaging/arch/chowdy/
 packaging/arch/*.pkg.tar.zst
+
+# personal notes
+/todo.txt
