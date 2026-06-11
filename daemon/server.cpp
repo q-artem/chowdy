@@ -100,10 +100,15 @@ void Server::accept_loop(int listen_fd, SockKind kind) {
         common::Fd conn(cfd);
         // One thread per connection — connections are short-lived (single auth
         // round-trip or short enrollment session), no need for a pool yet.
-        // Pre-warm the camera as soon as we have an accepted connection —
-        // start_stream + driver first-frame wait overlap with reading and
-        // parsing the request body. No-op when policy != lazy.
-        if (pipeline_) pipeline_->prewarm_async();
+        //
+        // Pre-warm the camera ONLY on the auth socket: there the sole request
+        // type is `auth`, whose handler always closes the camera via its
+        // request_scope. The mgmt socket carries list/remove (which never
+        // touch the camera) and test/enroll (which open+close it themselves) —
+        // speculatively opening here would leave the stream on after a `list`
+        // with nothing to close it. start_stream + the driver's first-frame
+        // wait overlap with read_message + parse. No-op when policy != lazy.
+        if (pipeline_ && kind == SockKind::Auth) pipeline_->prewarm_async();
 
         std::thread([this, c = std::move(conn), kind]() mutable {
             try { handle_connection(std::move(c), kind); }
