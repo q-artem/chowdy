@@ -19,8 +19,10 @@
  *     timeout=MS    total deadline including connect, default 2000
  *     socket=PATH   override auth socket path, default /run/chowdy/auth.sock
  *     debug         print extra detail to syslog
- *     confirm=enter prompt for Enter before face-auth (presence gate).
- *                   DEFAULT ON. Disable with confirm=none / noconfirm.
+ *     confirm=enter after the face matches, prompt for Enter to confirm
+ *                   the login (presence gate). DEFAULT ON. Face is
+ *                   recognised first; Enter is only asked on a match.
+ *                   Disable with confirm=none / noconfirm.
  *     allow_login_without_enter
  *                   when confirm is on but there's no conversation function
  *                   to prompt through (no tty / no polkit agent), still run
@@ -290,8 +292,9 @@ static int do_auth(pam_handle_t *pamh, uid_t uid,
     return success;
 }
 
-/* Ask the user to press Enter as a presence/intent confirmation.
- * Returns:
+/* Ask the user to press Enter as a presence/intent confirmation. Called
+ * only AFTER the face has matched, so the prompt confirms a real login
+ * rather than gating every attempt. Returns:
  *    1  user acknowledged (conv round-trip succeeded)
  *    0  there is no usable conversation function (no tty / no agent)
  *   -1  conv exists but failed for some other reason
@@ -306,7 +309,7 @@ static int prompt_enter(pam_handle_t *pamh, const struct opts *o) {
 
     char *resp = NULL;
     int rc = pam_prompt(pamh, PAM_PROMPT_ECHO_OFF, &resp,
-                        "chowdy: посмотрите в камеру и нажмите Enter ");
+                        "chowdy: Enter to confirm login ");
     if (resp) { free(resp); resp = NULL; }
 
     if (rc == PAM_SUCCESS)            return 1;
@@ -330,34 +333,36 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
     struct passwd *pw = getpwnam(username);
     if (!pw) return PAM_USER_UNKNOWN;
 
-    /* Presence gate. If we can't prompt and the admin hasn't opted into
-     * face-auth-without-confirmation for such contexts, hand off to the
-     * password line (AUTHINFO_UNAVAIL, NOT AUTH_ERR — the latter could be
-     * counted by pam_faillock toward an account lockout, and the user
-     * didn't actually fail anything). */
-    if (o.require_enter) {
-        int ack = prompt_enter(pamh, &o);
-        if (ack == 0) {
-            if (!o.allow_no_conv) {
-                pam_syslog(pamh, LOG_NOTICE,
-                    "chowdy: no conversation for Enter-confirmation and "
-                    "allow_login_without_enter is off — deferring to password "
-                    "(%s)", username);
-                return PAM_AUTHINFO_UNAVAIL;
-            }
-            if (o.debug)
-                pam_syslog(pamh, LOG_DEBUG,
-                    "chowdy: no conv but allow_login_without_enter set — "
-                    "proceeding without Enter");
-        } else if (ack < 0) {
-            return PAM_AUTHINFO_UNAVAIL;
-        }
-    }
-
+    /* Recognise the face FIRST — no point asking the user to confirm a
+     * login that the camera is about to reject anyway. */
     char reason[64] = {0};
     int success = do_auth(pamh, pw->pw_uid, &o, reason, sizeof(reason));
 
     if (success == 1) {
+        /* Face matched. Now the presence/intent gate: ask the user to press
+         * Enter to confirm. This stops a face-auth that fired while the user
+         * wasn't actually trying to log in (background sudo, someone walking
+         * past the IR camera). */
+        if (o.require_enter) {
+            int ack = prompt_enter(pamh, &o);
+            if (ack == 0) {
+                /* No conversation to prompt through (no tty / no agent). */
+                if (!o.allow_no_conv) {
+                    pam_syslog(pamh, LOG_NOTICE,
+                        "chowdy: face matched for %s but no conv to confirm "
+                        "and allow_login_without_enter is off — deferring to "
+                        "password", username);
+                    return PAM_AUTHINFO_UNAVAIL;
+                }
+                if (o.debug)
+                    pam_syslog(pamh, LOG_DEBUG,
+                        "chowdy: no conv but allow_login_without_enter set — "
+                        "granting without Enter");
+            } else if (ack < 0) {
+                return PAM_AUTHINFO_UNAVAIL;
+            }
+            /* ack == 1: user confirmed. Fall through to grant. */
+        }
         pam_syslog(pamh, LOG_NOTICE,
                    "chowdy granted for %s (reason=%s)",
                    username, reason[0] ? reason : "matched");
