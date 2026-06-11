@@ -182,8 +182,12 @@ stack'и — `kde` для GUI password prompts от polkit, `gdm-password`
 - `timeout=MS` — общий бюджет включая connect (default 2000)
 - `socket=PATH` — переопределить путь к `auth.sock`
 - `debug` — больше деталей в syslog (`journalctl -t pam_chowdy`)
-- `confirm=enter` (**дефолт**) — подтверждение по Enter перед face-auth
-  (защита от молчаливого срабатывания). Отключить: `confirm=none`.
+- `confirm=enter` (**дефолт**) — сначала распознать лицо, потом попросить
+  Enter для подтверждения (защита от молчаливого срабатывания). Отключить:
+  `confirm=none`. **На GUI-экране блокировки (kde/sddm/gdm-password) ставь
+  `confirm=none`** — иначе поле ввода не исчезает само после распознавания
+  и приходится жать Enter. `confirm=enter` имеет смысл для `sudo` в
+  терминале. Подробнее — `pam/README.md`.
 - `allow_login_without_enter` (дефолт **выкл**) — в контекстах без
   conv-функции (нет tty / polkit-агента — pkexec, cron, v2rayNG)
   всё равно делать face-auth без Enter. Выкл → такие контексты идут

@@ -93,10 +93,36 @@ sudo cp /etc/pam.d.bak.YYYYMMDD-HHMM/sudo /etc/pam.d/sudo
 Только тогда можно добавлять chowdy в другие PAM stack'и:
 - `polkit-1` (графические запросы пароля),
 - `login` (text login, **с особой осторожностью**),
-- `gdm-password` или другой display manager.
+- `gdm-password` / `sddm` / `kde` (display manager и экран блокировки).
 
 **Никогда не добавляй в `system-auth` или `login` до того как сценарий
 "sudo по лицу + fallback на пароль" работает стабильно несколько дней.**
+
+### GUI-локеры и display manager — ставь `confirm=none`
+
+На графическом экране блокировки (KDE — сервис `kde`, SDDM — `sddm`,
+GNOME — `gdm-password`) подтверждение по Enter ведёт себя плохо: chowdy
+распознаёт лицо, но затем зовёт `pam_prompt`, и локер показывает это как
+«поле ввода всё ещё активно, нажмите Enter» — поле не исчезает само,
+приходится жать Enter вручную. Это ломает привычный мгновенный unlock.
+
+Поэтому на лок-скрине используй `confirm=none` — мгновенное отпирание
+по лицу без Enter:
+
+```pam
+# /etc/pam.d/kde (или sddm / gdm-password)
+auth    sufficient    pam_chowdy.so timeout=2000 confirm=none
+```
+
+А `confirm=enter` (дефолт) оставь для `sudo` в терминале — там
+подтверждение осмысленно (фоновый процесс не дёрнет беспарольный auth).
+Это и threat-model-обоснованно: drive-by на лок-скрине не угроза
+(отпирается только твоё лицо), а у sudo — да.
+
+Быстрая правка существующей строки (идемпотентна):
+```sh
+sudo sed -i '/pam_chowdy.so/ s/ confirm=[a-z]*//; /pam_chowdy.so/ s/$/ confirm=none/' /etc/pam.d/kde
+```
 
 ## Отладка
 
