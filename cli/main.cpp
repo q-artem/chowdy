@@ -69,8 +69,35 @@ void cmd_auth_test(const std::string& auth_sock, uid_t uid) {
     std::cout << resp.dump(2) << "\n";
 }
 
+// Enroll/remove must run under sudo (the daemon enforces peer uid 0).
+// The actual human the credential belongs to is whoever invoked sudo —
+// take that from SUDO_UID. Plain root session (no SUDO_UID) targets root.
+uid_t target_uid() {
+    if (::getuid() == 0) {
+        if (const char* s = std::getenv("SUDO_UID")) {
+            char* end = nullptr;
+            unsigned long v = std::strtoul(s, &end, 10);
+            if (end && *end == '\0') return static_cast<uid_t>(v);
+        }
+    }
+    return ::getuid();
+}
+
+// Friendly explanation when the daemon rejects a mutating op without sudo.
+bool explain_if_denied(const nlohmann::json& resp) {
+    if (resp.value("type", "") == "error"
+        && resp.value("reason", "") == "peer_denied") {
+        std::cerr << "Эта команда меняет учётные данные и требует sudo:\n"
+                  << "    sudo chowdy-cli ...\n"
+                  << "(детали: " << resp.value("detail", "") << ")\n";
+        return true;
+    }
+    return false;
+}
+
 void cmd_list(const std::string& mgmt) {
     proto::ListRequest req;
+    req.uid        = static_cast<uint32_t>(target_uid());
     req.request_id = gen_request_id();
     auto resp = round_trip(mgmt, nlohmann::json(req), std::chrono::milliseconds{1000});
     if (resp.value("type", "") != "list_result") {
@@ -95,17 +122,21 @@ void cmd_list(const std::string& mgmt) {
     }
 }
 
-void cmd_remove(const std::string& mgmt, const std::string& label, bool all) {
+int cmd_remove(const std::string& mgmt, const std::string& label, bool all) {
     proto::RemoveRequest req;
+    req.uid        = static_cast<uint32_t>(target_uid());
     req.request_id = gen_request_id();
     req.label      = all ? "" : label;
     auto resp = round_trip(mgmt, nlohmann::json(req), std::chrono::milliseconds{1000});
+    if (explain_if_denied(resp)) return 1;
     std::cout << resp.dump(2) << "\n";
+    return 0;
 }
 
 int cmd_enroll(const std::string& mgmt, const std::string& label, int n) {
-    // 1. start session.
+    // 1. start session. Target user = whoever invoked sudo (SUDO_UID).
     proto::EnrollStartRequest start;
+    start.uid        = static_cast<uint32_t>(target_uid());
     start.request_id = gen_request_id();
     start.label      = label;
     start.min_frames = std::max(3, n / 2);
@@ -113,10 +144,12 @@ int cmd_enroll(const std::string& mgmt, const std::string& label, int n) {
 
     std::cout << "Подключение к chowdyd...\n";
     auto resp = round_trip(mgmt, nlohmann::json(start), std::chrono::milliseconds{2000});
+    if (explain_if_denied(resp)) return 1;
     if (resp.value("type", "") != "enroll_progress") {
         std::cerr << "ошибка enroll_start: " << resp.dump(2) << "\n";
         return 1;
     }
+    std::cout << "Энроллмент для uid " << start.uid << "\n";
     auto progress = resp.get<proto::EnrollProgressResponse>();
     const std::string session = progress.session;
     std::cout << "Готов? Смотри прямо в камеру.\n";
@@ -168,9 +201,9 @@ void usage(const char* p) {
               << "команды:\n"
               << "  test                            quick ping daemon, что видит камера\n"
               << "  auth-test                       полноценный auth для текущего uid\n"
-              << "  enroll --label LABEL [-n N=8]   интерактивный энроллмент\n"
+              << "  enroll --label LABEL [-n N=8]   интерактивный энроллмент (нужен sudo)\n"
               << "  list                            показать энроллменты\n"
-              << "  remove (--label LABEL | --all)  удалить лейбл или все\n";
+              << "  remove (--label LABEL | --all)  удалить лейбл или все (нужен sudo)\n";
 }
 
 } // namespace
@@ -216,8 +249,7 @@ int main(int argc, char** argv) {
                 else { std::cerr << "неизвестный аргумент remove: " << a << "\n"; return 2; }
             }
             if (!all && label.empty()) { std::cerr << "remove: нужен --label или --all\n"; return 2; }
-            cmd_remove(mgmt_sock, label, all);
-            return 0;
+            return cmd_remove(mgmt_sock, label, all);
         }
         std::cerr << "неизвестная команда: " << cmd << "\n";
         usage(argv[0]);

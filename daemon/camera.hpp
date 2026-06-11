@@ -21,7 +21,9 @@
 namespace chowdy::daemon {
 
 struct CameraConfig {
-    std::string device      = "/dev/video2";
+    // Stable by-path link to the target IR sensor (13d3:56eb on the ZenBook).
+    // /dev/videoN indices can renumber between boots; by-path can't.
+    std::string device      = "/dev/v4l/by-path/pci-0000:00:14.0-usb-0:5:1.2-video-index0";
     int         width       = 640;
     int         height      = 360;
     int         fps         = 30;

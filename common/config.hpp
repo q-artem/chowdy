@@ -15,7 +15,9 @@
 namespace chowdy::common::config {
 
 struct CameraSection {
-    std::string device         = "/dev/video2";
+    // Default matches etc/chowdy/config.toml.example — the stable by-path
+    // link for the target IR camera. Override per-machine in config.toml.
+    std::string device         = "/dev/v4l/by-path/pci-0000:00:14.0-usb-0:5:1.2-video-index0";
     int         width          = 640;
     int         height         = 360;
     int         fps            = 30;

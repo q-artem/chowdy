@@ -28,12 +28,11 @@ std::string EnrollSessionManager::create(uid_t uid, std::string label,
     return id;
 }
 
-EnrollSession* EnrollSessionManager::get(const std::string& id, uid_t uid) {
+EnrollSession* EnrollSessionManager::get(const std::string& id) {
     std::lock_guard<std::mutex> lock(mu_);
     reap_expired_locked();
     auto it = sessions_.find(id);
     if (it == sessions_.end()) return nullptr;
-    if (it->second.uid != uid) return nullptr;
     it->second.last_touch = std::chrono::steady_clock::now();
     return &it->second;
 }

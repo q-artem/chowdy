@@ -8,9 +8,10 @@
 //   3. enroll_finish → daemon picks a threshold from pairwise sims, saves
 //                      to <users_dir>/<uid>/<label>.enc, drops session.
 //
-// Sessions live in memory only — daemon restart drops them. They're
-// uid-bound: the SO_PEERCRED check on the handler ensures only the owner
-// can drive their own session.
+// Sessions live in memory only — daemon restart drops them. The uid stored
+// in a session is the TARGET user the enrollment is being created for; the
+// handlers only accept enroll messages from peer uid 0 (CLI under sudo), so
+// session access control reduces to "is the caller root".
 
 #pragma once
 
@@ -42,8 +43,9 @@ public:
     // returned pointer. Sessions older than 5 minutes are reaped on access.
     std::string create(uid_t uid, std::string label, int min_frames, int max_frames);
 
-    // Returns nullptr if id is unknown, expired, or doesn't belong to uid.
-    EnrollSession* get(const std::string& id, uid_t uid);
+    // Returns nullptr if id is unknown or expired. Callers are already
+    // root-gated by the handlers, so no per-uid check here.
+    EnrollSession* get(const std::string& id);
 
     void drop(const std::string& id);
 

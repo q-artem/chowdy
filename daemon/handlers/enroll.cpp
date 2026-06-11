@@ -40,7 +40,25 @@ proto::ErrorResponse make_err(const std::string& req_id, std::string_view reason
     return r;
 }
 
+// Enrollment adds an authentication credential, so it must itself be
+// authenticated. We require the CLI to come through sudo: peer uid 0.
+// Without this gate anyone with access to an unlocked session could
+// enroll THEIR face for the logged-in user and then pass face-auth as
+// them — see DESIGN.md §3.
+bool enroll_authorised(const Context& ctx) {
+    return ctx.peer.uid == 0;
+}
+
+constexpr const char* kNeedRoot =
+    "enrollment changes credentials and must run as root (use sudo)";
+
 proto::AnyResponse handle_start(const Context& ctx, const proto::EnrollStartRequest& r) {
+    if (!enroll_authorised(ctx)) {
+        common::log::warn("enroll_start denied: peer is not root",
+            {{"peer_uid", std::to_string(ctx.peer.uid)},
+             {"target_uid", std::to_string(r.uid)}});
+        return make_err(r.request_id, proto::reason::peer_denied, kNeedRoot);
+    }
     if (!ctx.store || !ctx.pipeline) return make_err(r.request_id, proto::reason::internal_error);
     if (r.label.empty() || r.label.find('/') != std::string::npos)
         return make_err(r.request_id, proto::reason::internal_error, "invalid label");
@@ -48,23 +66,26 @@ proto::AnyResponse handle_start(const Context& ctx, const proto::EnrollStartRequ
 
     const int min_f = r.min_frames > 0 ? r.min_frames : 5;
     const int max_f = r.max_frames > min_f ? r.max_frames : (min_f + 7);
-    auto id = ctx.enroll_sessions->create(ctx.peer.uid, r.label, min_f, max_f);
+    auto id = ctx.enroll_sessions->create(static_cast<uid_t>(r.uid), r.label, min_f, max_f);
 
-    common::log::info("enroll start",
-        {{"uid", std::to_string(ctx.peer.uid)},
+    common::log::notice("enroll start",
+        {{"target_uid", std::to_string(r.uid)},
+         {"peer_pid",   std::to_string(ctx.peer.pid)},
          {"label", r.label},
          {"session", id}});
 
-    EnrollSession* s = ctx.enroll_sessions->get(id, ctx.peer.uid);
+    EnrollSession* s = ctx.enroll_sessions->get(id);
     if (!s) return make_err(r.request_id, proto::reason::internal_error);
     return make_progress(id, r.request_id, *s, "ok", 0.0, false);
 }
 
 proto::AnyResponse handle_frame(const Context& ctx, const proto::EnrollFrameRequest& r) {
+    if (!enroll_authorised(ctx))
+        return make_err(r.request_id, proto::reason::peer_denied, kNeedRoot);
     if (!ctx.enroll_sessions || !ctx.pipeline)
         return make_err(r.request_id, proto::reason::internal_error);
 
-    EnrollSession* s = ctx.enroll_sessions->get(r.session, ctx.peer.uid);
+    EnrollSession* s = ctx.enroll_sessions->get(r.session);
     if (!s) return make_err(r.request_id, proto::reason::peer_denied, "unknown session");
 
     if (static_cast<int>(s->embeddings.size()) >= s->max_frames) {
@@ -104,6 +125,8 @@ proto::AnyResponse handle_frame(const Context& ctx, const proto::EnrollFrameRequ
 }
 
 proto::AnyResponse handle_finish(const Context& ctx, const proto::EnrollFinishRequest& r) {
+    if (!enroll_authorised(ctx))
+        return make_err(r.request_id, proto::reason::peer_denied, kNeedRoot);
     if (!ctx.enroll_sessions || !ctx.store || !ctx.pipeline)
         return make_err(r.request_id, proto::reason::internal_error);
     // Enroll is a multi-request flow — we deliberately keep the camera open
@@ -111,7 +134,7 @@ proto::AnyResponse handle_finish(const Context& ctx, const proto::EnrollFinishRe
     // Closing happens here, at finish.
     auto cam_scope = ctx.pipeline->request_scope();   // closes camera on lazy
 
-    EnrollSession* s = ctx.enroll_sessions->get(r.session, ctx.peer.uid);
+    EnrollSession* s = ctx.enroll_sessions->get(r.session);
     if (!s) return make_err(r.request_id, proto::reason::peer_denied, "unknown session");
     if (static_cast<int>(s->embeddings.size()) < s->min_frames)
         return make_err(r.request_id, proto::reason::low_confidence, "not enough good frames");
@@ -122,7 +145,7 @@ proto::AnyResponse handle_finish(const Context& ctx, const proto::EnrollFinishRe
     ef.threshold   = common::encoding::pick_threshold(ef.embeddings);
 
     try {
-        ctx.store->save(ctx.peer.uid, s->label, ef);
+        ctx.store->save(s->uid, s->label, ef);   // s->uid = target user from enroll_start
     } catch (const std::exception& e) {
         return make_err(r.request_id, proto::reason::internal_error, e.what());
     }
@@ -134,7 +157,7 @@ proto::AnyResponse handle_finish(const Context& ctx, const proto::EnrollFinishRe
     done.threshold        = ef.threshold;
 
     common::log::notice("enroll saved",
-        {{"uid", std::to_string(ctx.peer.uid)},
+        {{"target_uid", std::to_string(s->uid)},
          {"label", s->label},
          {"n", std::to_string(done.embeddings_saved)},
          {"threshold", std::to_string(done.threshold)}});

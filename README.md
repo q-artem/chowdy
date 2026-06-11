@@ -92,8 +92,15 @@ ls /dev/v4l/by-path/
 #### 4. Энроллмент
 
 ```sh
-chowdy-cli enroll --label main -n 12
+sudo chowdy-cli enroll --label main -n 12
 ```
+
+Энроллмент **требует sudo** — добавление нового лица означает добавление
+нового учётного фактора, поэтому сначала система должна убедиться что
+это делаешь действительно ты (через пароль sudo). Daemon отвергает
+enroll/remove от непривилегированных процессов (`SO_PEERCRED != root`).
+Лицо при этом привязывается к пользователю, вызвавшему sudo
+(`SUDO_UID`), а не к root.
 
 CLI попросит нажать Enter и подержать позу. **Полезно** в процессе:
 
@@ -117,8 +124,8 @@ chowdy-cli auth-test
 0.64) — повтори enroll с большим разнообразием:
 
 ```sh
-chowdy-cli remove --label main
-chowdy-cli enroll --label main -n 12   # с движением, см. шаг 4
+sudo chowdy-cli remove --label main
+sudo chowdy-cli enroll --label main -n 12   # с движением, см. шаг 4
 ```
 
 ---
@@ -223,8 +230,10 @@ level = "info"                  # debug | info | notice | warn | error
   `RestrictAddressFamilies=AF_UNIX`, пустой `CapabilityBoundingSet`).
 - **`chowdy-cli`** — пользовательский CLI: `enroll`, `list`, `remove`,
   `test`, `auth-test`. Через unix-socket `/run/chowdy/mgmt.sock`
-  (mode `0666`, daemon проверяет `SO_PEERCRED` и работает только
-  с энроллментами вызывающего uid).
+  (mode `0666`). Read-only команды (`list`, `test`, `auth-test`)
+  доступны любому юзеру для своих данных (`SO_PEERCRED`); мутирующие
+  (`enroll`, `remove`) daemon принимает **только от root** — запускай
+  через sudo, целевой пользователь берётся из `SUDO_UID`.
 - **`pam_chowdy.so`** — минимальный PAM модуль на C, дёргает daemon
   через `/run/chowdy/auth.sock` (mode `0660 root:chowdy`). При любой
   ошибке IPC возвращает `PAM_AUTHINFO_UNAVAIL` — стек идёт дальше,

@@ -55,6 +55,11 @@ struct TestRequest {
 };
 
 struct EnrollStartRequest {
+    // Target user the enrollment is created FOR. Mutating mgmt operations
+    // (enroll, remove) are only accepted from peer uid 0 — adding a face is
+    // adding a credential, so it has to pass sudo's own auth first.
+    // The CLI fills this from SUDO_UID.
+    uint32_t    uid        = 0;
     std::string label;
     int         min_frames = 5;
     int         max_frames = 15;
@@ -72,10 +77,15 @@ struct EnrollFinishRequest {
 };
 
 struct ListRequest {
+    // Optional target uid. Only honoured when the peer is root; everyone
+    // else gets their own (SO_PEERCRED) list regardless of this field.
+    uint32_t    uid = 0;
     std::string request_id;
 };
 
 struct RemoveRequest {
+    // Target user — same root-only contract as EnrollStartRequest::uid.
+    uint32_t    uid = 0;
     std::string label;
     std::string request_id;
 };
@@ -182,12 +192,13 @@ inline void from_json(const json& j, TestRequest& r) {
 }
 
 inline void to_json(json& j, const EnrollStartRequest& r) {
-    j = json{{"type", "enroll_start"}, {"label", r.label},
+    j = json{{"type", "enroll_start"}, {"uid", r.uid}, {"label", r.label},
              {"min_frames", r.min_frames}, {"max_frames", r.max_frames},
              {"request_id", r.request_id}};
 }
 inline void from_json(const json& j, EnrollStartRequest& r) {
     j.at("label").get_to(r.label);
+    if (j.contains("uid"))        r.uid        = j.at("uid");
     if (j.contains("min_frames")) r.min_frames = j.at("min_frames");
     if (j.contains("max_frames")) r.max_frames = j.at("max_frames");
     if (j.contains("request_id")) r.request_id = j.at("request_id");
@@ -212,18 +223,20 @@ inline void from_json(const json& j, EnrollFinishRequest& r) {
 }
 
 inline void to_json(json& j, const ListRequest& r) {
-    j = json{{"type", "list"}, {"request_id", r.request_id}};
+    j = json{{"type", "list"}, {"uid", r.uid}, {"request_id", r.request_id}};
 }
 inline void from_json(const json& j, ListRequest& r) {
+    if (j.contains("uid"))        r.uid        = j.at("uid");
     if (j.contains("request_id")) r.request_id = j.at("request_id");
 }
 
 inline void to_json(json& j, const RemoveRequest& r) {
-    j = json{{"type", "remove"}, {"label", r.label},
+    j = json{{"type", "remove"}, {"uid", r.uid}, {"label", r.label},
              {"request_id", r.request_id}};
 }
 inline void from_json(const json& j, RemoveRequest& r) {
     j.at("label").get_to(r.label);
+    if (j.contains("uid"))        r.uid        = j.at("uid");
     if (j.contains("request_id")) r.request_id = j.at("request_id");
 }
 

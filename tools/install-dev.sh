@@ -116,8 +116,8 @@ cat <<MSG
          sudo systemctl enable --now chowdyd.socket
          systemctl status chowdyd
 
-    2. если ещё нет энроллмента:
-         chowdy-cli enroll --label main
+    2. если ещё нет энроллмента (sudo обязателен):
+         sudo chowdy-cli enroll --label main
 
     3. проверка:
          chowdy-cli list
