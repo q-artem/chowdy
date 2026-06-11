@@ -16,9 +16,18 @@
  *
  * Module options (set on the PAM line, e.g.
  *   auth sufficient pam_chowdy.so timeout=2000 socket=/run/chowdy/auth.sock):
- *     timeout=MS   total deadline including connect, default 2000
- *     socket=PATH  override auth socket path, default /run/chowdy/auth.sock
- *     debug        print extra detail to syslog
+ *     timeout=MS    total deadline including connect, default 2000
+ *     socket=PATH   override auth socket path, default /run/chowdy/auth.sock
+ *     debug         print extra detail to syslog
+ *     confirm=enter prompt for Enter before face-auth (presence gate).
+ *                   DEFAULT ON. Disable with confirm=none / noconfirm.
+ *     allow_login_without_enter
+ *                   when confirm is on but there's no conversation function
+ *                   to prompt through (no tty / no polkit agent), still run
+ *                   face-auth silently. DEFAULT OFF — without it such
+ *                   contexts get no face-auth and fall through to password.
+ *                   (chowdy is `sufficient`, so it can never block login;
+ *                   "off" just means password instead of face here.)
  */
 
 #define _GNU_SOURCE 1
@@ -53,12 +62,34 @@ struct opts {
     const char *socket_path;
     int         timeout_ms;
     int         debug;
+    /* require_enter: if set, prompt the user to press Enter before we run
+     * the face-auth pipeline. This is a presence/intent gate — it stops a
+     * background process (or someone just walking past the camera) from
+     * triggering a silent face-auth. Default ON. Disable with confirm=none. */
+    int         require_enter;
+    /* allow_no_conv: what to do when require_enter is set but there's no
+     * conversation function to prompt through (pkexec without an agent,
+     * cron, some GUI launchers). NOTE: chowdy is a `sufficient` module, so
+     * it can never actually FORBID login — declining just falls through to
+     * the next auth line (password). So this really means: "in a context
+     * where we can't ask for Enter, do we still grant face-auth (true), or
+     * decline it and let the password prompt handle the login (false)?"
+     * Default false: no Enter possible → no face-auth → password. */
+    int         allow_no_conv;
 };
 
+static int truthy(const char *s) {
+    /* empty (bare token) counts as true; explicit yes/true/1 too */
+    return s[0] == '\0' || !strcmp(s, "yes") || !strcmp(s, "true")
+        || !strcmp(s, "1") || !strcmp(s, "on");
+}
+
 static void parse_options(int argc, const char **argv, struct opts *o) {
-    o->socket_path = DEFAULT_SOCKET;
-    o->timeout_ms  = DEFAULT_TIMEOUT;
-    o->debug       = 0;
+    o->socket_path   = DEFAULT_SOCKET;
+    o->timeout_ms    = DEFAULT_TIMEOUT;
+    o->debug         = 0;
+    o->require_enter = 1;   /* default ON */
+    o->allow_no_conv = 0;   /* default OFF */
     for (int i = 0; i < argc; ++i) {
         const char *a = argv[i];
         if (strncmp(a, "socket=", 7) == 0) {
@@ -68,6 +99,17 @@ static void parse_options(int argc, const char **argv, struct opts *o) {
             if (t > 0 && t <= 60000) o->timeout_ms = t;
         } else if (strcmp(a, "debug") == 0) {
             o->debug = 1;
+        } else if (strncmp(a, "confirm=", 8) == 0) {
+            /* confirm=enter (default) | confirm=none|off|no */
+            const char *v = a + 8;
+            o->require_enter = !(!strcmp(v, "none") || !strcmp(v, "off")
+                                 || !strcmp(v, "no"));
+        } else if (strcmp(a, "noconfirm") == 0) {
+            o->require_enter = 0;
+        } else if (strncmp(a, "allow_login_without_enter", 25) == 0) {
+            /* bare token or =yes/=no */
+            const char *v = a + 25;
+            o->allow_no_conv = (*v == '=') ? truthy(v + 1) : truthy(v);
         }
     }
 }
@@ -248,6 +290,33 @@ static int do_auth(pam_handle_t *pamh, uid_t uid,
     return success;
 }
 
+/* Ask the user to press Enter as a presence/intent confirmation.
+ * Returns:
+ *    1  user acknowledged (conv round-trip succeeded)
+ *    0  there is no usable conversation function (no tty / no agent)
+ *   -1  conv exists but failed for some other reason
+ * We don't care WHAT the user typed — only that a human completed the
+ * round trip. */
+static int prompt_enter(pam_handle_t *pamh, const struct opts *o) {
+    const void *item = NULL;
+    if (pam_get_item(pamh, PAM_CONV, &item) != PAM_SUCCESS || !item)
+        return 0;
+    const struct pam_conv *conv = (const struct pam_conv *)item;
+    if (!conv->conv) return 0;
+
+    char *resp = NULL;
+    int rc = pam_prompt(pamh, PAM_PROMPT_ECHO_OFF, &resp,
+                        "chowdy: посмотрите в камеру и нажмите Enter ");
+    if (resp) { free(resp); resp = NULL; }
+
+    if (rc == PAM_SUCCESS)            return 1;
+    if (rc == PAM_CONV_ERR
+        || rc == PAM_CONV_AGAIN)      return 0;  /* treat as "no conv" */
+    if (o->debug)
+        pam_syslog(pamh, LOG_DEBUG, "pam_prompt failed: %d", rc);
+    return -1;
+}
+
 PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
                                    int argc, const char **argv) {
     (void)flags;
@@ -260,6 +329,30 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
     }
     struct passwd *pw = getpwnam(username);
     if (!pw) return PAM_USER_UNKNOWN;
+
+    /* Presence gate. If we can't prompt and the admin hasn't opted into
+     * face-auth-without-confirmation for such contexts, hand off to the
+     * password line (AUTHINFO_UNAVAIL, NOT AUTH_ERR — the latter could be
+     * counted by pam_faillock toward an account lockout, and the user
+     * didn't actually fail anything). */
+    if (o.require_enter) {
+        int ack = prompt_enter(pamh, &o);
+        if (ack == 0) {
+            if (!o.allow_no_conv) {
+                pam_syslog(pamh, LOG_NOTICE,
+                    "chowdy: no conversation for Enter-confirmation and "
+                    "allow_login_without_enter is off — deferring to password "
+                    "(%s)", username);
+                return PAM_AUTHINFO_UNAVAIL;
+            }
+            if (o.debug)
+                pam_syslog(pamh, LOG_DEBUG,
+                    "chowdy: no conv but allow_login_without_enter set — "
+                    "proceeding without Enter");
+        } else if (ack < 0) {
+            return PAM_AUTHINFO_UNAVAIL;
+        }
+    }
 
     char reason[64] = {0};
     int success = do_auth(pamh, pw->pw_uid, &o, reason, sizeof(reason));

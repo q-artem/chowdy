@@ -182,6 +182,13 @@ stack'и — `kde` для GUI password prompts от polkit, `gdm-password`
 - `timeout=MS` — общий бюджет включая connect (default 2000)
 - `socket=PATH` — переопределить путь к `auth.sock`
 - `debug` — больше деталей в syslog (`journalctl -t pam_chowdy`)
+- `confirm=enter` (**дефолт**) — подтверждение по Enter перед face-auth
+  (защита от молчаливого срабатывания). Отключить: `confirm=none`.
+- `allow_login_without_enter` (дефолт **выкл**) — в контекстах без
+  conv-функции (нет tty / polkit-агента — pkexec, cron, v2rayNG)
+  всё равно делать face-auth без Enter. Выкл → такие контексты идут
+  на пароль. ⚠️ chowdy `sufficient` и не блокирует логин: «выкл» = пароль,
+  а не запрет. Реальный запрет приложению — через `sudoers`/polkit.
 
 ---
 
