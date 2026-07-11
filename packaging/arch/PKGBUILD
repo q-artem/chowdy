@@ -8,7 +8,7 @@
 # для быстрой итерации.
 
 pkgname=chowdy
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc='Resident C++ face-auth daemon for Linux (IR-only, PAM)'
 arch=('x86_64')
