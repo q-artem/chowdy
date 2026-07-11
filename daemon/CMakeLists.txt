@@ -18,7 +18,7 @@ target_link_libraries(chowdyd PRIVATE
     onnxruntime::onnxruntime
     opencv_core
     opencv_imgproc
-    opencv_calib3d
+    ${CHOWDY_OPENCV_AFFINE_LIB}
     PkgConfig::LIBSYSTEMD
     Threads::Threads
 )

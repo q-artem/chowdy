@@ -30,7 +30,12 @@
 #include <string>
 #include <vector>
 
-#include <opencv2/calib3d.hpp>
+#include <opencv2/core/version.hpp>
+#if CV_VERSION_MAJOR >= 5
+#  include <opencv2/geometry.hpp>   // estimateAffinePartial2D moved here in OpenCV 5
+#else
+#  include <opencv2/calib3d.hpp>
+#endif
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>

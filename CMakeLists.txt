@@ -18,7 +18,21 @@ include(cmake/CompileOptions.cmake)
 
 # === third-party (shared) ===
 find_package(onnxruntime CONFIG REQUIRED)
-find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d)
+
+# OpenCV 5 split the old `calib3d` module: estimateAffinePartial2D (our
+# 5-point face alignment) now lives in the `geometry` module. Pick the
+# right component + link lib per major version so we build against both
+# OpenCV 4 and 5.
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
+if(OpenCV_VERSION_MAJOR GREATER_EQUAL 5)
+    find_package(OpenCV REQUIRED COMPONENTS geometry)
+    set(CHOWDY_OPENCV_AFFINE_LIB opencv_geometry)
+else()
+    find_package(OpenCV REQUIRED COMPONENTS calib3d)
+    set(CHOWDY_OPENCV_AFFINE_LIB opencv_calib3d)
+endif()
+message(STATUS "chowdy: OpenCV ${OpenCV_VERSION}, affine lib = ${CHOWDY_OPENCV_AFFINE_LIB}")
+
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBSYSTEMD REQUIRED IMPORTED_TARGET libsystemd)

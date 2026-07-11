@@ -11,7 +11,7 @@ add_executable(chowdy-detect-test
 )
 target_link_libraries(chowdy-detect-test PRIVATE
     onnxruntime::onnxruntime
-    opencv_core opencv_imgproc opencv_imgcodecs opencv_calib3d
+    opencv_core opencv_imgproc opencv_imgcodecs ${CHOWDY_OPENCV_AFFINE_LIB}
 )
 chowdy_apply_compile_options(chowdy-detect-test)
 
@@ -20,6 +20,6 @@ add_executable(chowdy-pipeline-test
 )
 target_link_libraries(chowdy-pipeline-test PRIVATE
     onnxruntime::onnxruntime
-    opencv_core opencv_imgproc opencv_calib3d
+    opencv_core opencv_imgproc ${CHOWDY_OPENCV_AFFINE_LIB}
 )
 chowdy_apply_compile_options(chowdy-pipeline-test)
