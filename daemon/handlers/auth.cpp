@@ -47,14 +47,23 @@ proto::AuthResponse make_resp(const proto::AuthRequest& req, std::string_view re
 proto::AnyResponse handle_auth(const Context& ctx, const proto::AuthRequest& req) {
     const auto t0 = clock_type::now();
 
+    if (!ctx.pipeline || !ctx.store) {
+        return make_resp(req, proto::reason::internal_error, ms_since(t0));
+    }
+
+    // Create the camera-closing scope FIRST, before any early-return check.
+    // The speculative prewarm (Server, on connect) may already have opened
+    // the camera; if we bail out below (peer_denied / not_enrolled /
+    // embedder_mismatch) we must still close it, otherwise the LED stays lit
+    // with nothing to shut it. On lazy the scope's dtor spawns the async
+    // close on every return path. No-op if nothing opened the camera.
+    auto cam_scope = ctx.pipeline->request_scope();
+
     if (!authorise(ctx, req.uid)) {
         common::log::warn("auth peer not authorised",
             {{"peer_uid", std::to_string(ctx.peer.uid)},
              {"req_uid",  std::to_string(req.uid)}});
         return make_resp(req, proto::reason::peer_denied, ms_since(t0));
-    }
-    if (!ctx.pipeline || !ctx.store) {
-        return make_resp(req, proto::reason::internal_error, ms_since(t0));
     }
 
     auto enrollments = ctx.store->for_uid(req.uid);
@@ -74,7 +83,6 @@ proto::AnyResponse handle_auth(const Context& ctx, const proto::AuthRequest& req
 
     // Serialise camera access across connections.
     std::lock_guard<std::mutex> lock(ctx.pipeline->mutex());
-    auto cam_scope = ctx.pipeline->request_scope();   // closes camera on lazy
 
     const auto budget = std::chrono::milliseconds(req.timeout_ms > 0 ? req.timeout_ms : 2000);
     const auto deadline = t0 + budget;

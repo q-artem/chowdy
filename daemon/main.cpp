@@ -86,6 +86,7 @@ int main(int argc, char** argv) {
     pl_cfg.dark_threshold            = acfg.camera.dark_threshold;
     pl_cfg.camera_policy             = acfg.camera.policy;
     pl_cfg.idle_keep_ms              = acfg.camera.idle_keep_ms;
+    pl_cfg.lazy_safety_close_ms      = acfg.camera.lazy_safety_close_ms;
     std::string users_dir            = acfg.storage.users_dir;
 
     for (int i = 1; i < argc; ++i) {

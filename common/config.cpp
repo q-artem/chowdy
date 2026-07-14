@@ -57,6 +57,7 @@ AppConfig load(const std::filesystem::path& path) {
     assign_if<double>(cfg.camera.dark_threshold, cam["dark_threshold"]);
     assign_if_str(cfg.camera.policy,        cam["camera_policy"]);
     assign_if<int>(cfg.camera.idle_keep_ms, cam["idle_keep_ms"]);
+    assign_if<int>(cfg.camera.lazy_safety_close_ms, cam["lazy_safety_close_ms"]);
 
     auto rec = tbl["recognition"];
     assign_if_str(cfg.recognition.detector_model, rec["detector_model"]);

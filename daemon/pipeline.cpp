@@ -41,7 +41,14 @@ Pipeline::Pipeline(const PipelineConfig& cfg)
                 {{"err", e.what()}});
         }
     }
+    // Start the watchdog. For idle_keep it's the primary close mechanism
+    // (after idle_keep_ms); for lazy it's a safety net (after
+    // lazy_safety_close_ms) backstopping the immediate per-request close.
     if (cfg_.camera_policy == "idle_keep" && cfg_.idle_keep_ms > 0) {
+        watchdog_window_ = std::chrono::milliseconds(cfg_.idle_keep_ms);
+        idle_thread_ = std::thread(&Pipeline::idle_keeper_loop, this);
+    } else if (cfg_.camera_policy == "lazy" && cfg_.lazy_safety_close_ms > 0) {
+        watchdog_window_ = std::chrono::milliseconds(cfg_.lazy_safety_close_ms);
         idle_thread_ = std::thread(&Pipeline::idle_keeper_loop, this);
     }
 }
@@ -67,6 +74,10 @@ void Pipeline::ensure_camera_open() {
         frames_since_open_ = 0;
         common::log::info("camera stream resumed");
     }
+    // Mark activity on open too (not just process_one_frame) so the watchdog
+    // can reclaim a stream that was opened — e.g. by a speculative prewarm —
+    // but never actually used.
+    last_use_ns_.store(std::chrono::steady_clock::now().time_since_epoch().count());
 }
 
 void Pipeline::release_camera() {
@@ -76,22 +87,23 @@ void Pipeline::release_camera() {
     if (!camera_.is_streaming()) return;
     camera_.stop_stream();
     frames_since_open_ = 0;
+    // Mark that a close happened so a delayed prewarm won't re-open (see
+    // prewarm_async). Only bumped on an actual STREAMOFF.
+    use_gen_.fetch_add(1, std::memory_order_relaxed);
     common::log::info("camera stream stopped");
 }
 
 void Pipeline::prewarm_async() {
     if (cfg_.camera_policy != "lazy") return;
-    // Throttle: if the pipeline mutex is busy a request is already in flight
-    // (handler running, or detached close still draining). Don't pile yet
-    // another detached thread onto the contention — the in-flight request
-    // will leave the camera in the right state for the next one.
-    if (!mu_.try_lock()) return;
-    const bool already_streaming = camera_.is_streaming();
-    mu_.unlock();
-    if (already_streaming) return;
-
-    std::thread([this]{
+    // Snapshot the close-generation NOW, on the accept thread, before the
+    // request's handler runs. The detached opener below only opens if no
+    // close happened in between — so a prewarm that loses the mutex race and
+    // runs late can never re-open a stream the request already closed (the
+    // old ~1-2% "LED stays lit" leak).
+    const uint64_t gen0 = use_gen_.load(std::memory_order_relaxed);
+    std::thread([this, gen0]{
         std::lock_guard<std::mutex> g(mu_);
+        if (use_gen_.load(std::memory_order_relaxed) != gen0) return;  // stale — a close happened
         try { ensure_camera_open(); }
         catch (const std::exception& e) {
             common::log::warn("prewarm failed", {{"err", e.what()}});
@@ -114,25 +126,30 @@ void Pipeline::release_camera_async() {
 
 void Pipeline::idle_keeper_loop() {
     using clock = std::chrono::steady_clock;
-    const auto idle_window = std::chrono::milliseconds(cfg_.idle_keep_ms);
+    const auto window = watchdog_window_;
+    const bool is_safety_net = (cfg_.camera_policy == "lazy");
     while (!idle_stop_.load()) {
         std::unique_lock<std::mutex> lk(idle_cv_mu_);
-        // Wake up at half the idle window so the closing reaction is at most
-        // 1.5× the configured value.
-        idle_cv_.wait_for(lk, idle_window / 2,
-                          [&]{ return idle_stop_.load(); });
+        // Wake at half the window so the closing reaction is at most 1.5× it.
+        idle_cv_.wait_for(lk, window / 2, [&]{ return idle_stop_.load(); });
         if (idle_stop_.load()) break;
 
         auto last_ns = last_use_ns_.load();
         if (last_ns == 0) continue;
         auto last_tp = clock::time_point(clock::duration(last_ns));
-        if (clock::now() - last_tp >= idle_window) {
+        if (clock::now() - last_tp >= window) {
             std::lock_guard<std::mutex> mu(mu_);
+            // Only act if the stream is actually on ("is the LED lit?"). In
+            // lazy mode the per-request scope has normally already closed it,
+            // so this fires only when something left it streaming.
             if (camera_.is_streaming()) {
-                common::log::info("idle_keep: stopping stream",
-                    {{"after_ms", std::to_string(cfg_.idle_keep_ms)}});
+                common::log::info(
+                    is_safety_net ? "watchdog: force-closing leaked camera stream"
+                                  : "idle_keep: stopping stream",
+                    {{"after_ms", std::to_string(window.count())}});
                 camera_.stop_stream();
                 frames_since_open_ = 0;
+                use_gen_.fetch_add(1, std::memory_order_relaxed);
             }
         }
     }

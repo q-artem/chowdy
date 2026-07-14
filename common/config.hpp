@@ -24,6 +24,9 @@ struct CameraSection {
     double      dark_threshold = 25.0;
     std::string policy         = "lazy";        // lazy | warm | idle_keep
     int         idle_keep_ms   = 10000;
+    // lazy-only safety net: force-close the stream this many ms after last
+    // use if it's somehow still on. 0 disables.
+    int         lazy_safety_close_ms = 5000;
 };
 
 struct RecognitionSection {

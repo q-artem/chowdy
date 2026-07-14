@@ -33,6 +33,12 @@ dark_threshold = 25
 camera_policy  = "lazy"
 idle_keep_ms   = 10000
 
+# Только для policy=lazy: страховка. Даже хотя каждый запрос гасит камеру
+# сразу, фоновый watchdog принудительно выключит стрим, если тот по какой-то
+# причине остался включён спустя столько мс после последнего использования
+# (проверяет реальное состояние стрима — «горит ли светодиод»). 0 = выключить.
+lazy_safety_close_ms = 5000
+
 [recognition]
 detector_model          = "/var/lib/chowdy/models/detector.onnx"
 embedder_model          = "/var/lib/chowdy/models/embedder.onnx"

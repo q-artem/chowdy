@@ -53,6 +53,12 @@ struct PipelineConfig {
     //   "lazy"       — close immediately after every request
     std::string           camera_policy   = "idle_keep";
     int                   idle_keep_ms    = 10000;
+
+    // Safety net for "lazy": even though each request closes the camera
+    // immediately, a watchdog force-closes the stream if it's somehow still
+    // on this many ms after the last use. Backstops any edge case that
+    // leaves the indicator LED lit. 0 disables the watchdog.
+    int                   lazy_safety_close_ms = 5000;
 };
 
 struct FrameOutcome {
@@ -85,9 +91,14 @@ public:
     void release_camera_async();
 
     // Kick off ensure_camera_open() off-thread. Called by Server right after
-    // accept() so start_stream + a tiny slice of the driver's first-frame
-    // wait overlap with read_message + request parsing. No-op for warm
-    // (always streaming) and idle_keep (idle thread owns lifecycle).
+    // accept() so start_stream + a slice of the driver's first-frame wait
+    // overlap with read_message + request parsing — the earliest we can
+    // start the camera. No-op for warm/idle_keep (they own the lifecycle).
+    //
+    // Race-free: prewarm captures the "use generation" at spawn and skips
+    // opening if a request has closed the camera in the meantime — so a
+    // delayed prewarm can never re-open a stream the request already shut,
+    // which is what used to leave the LED lit ~1-2% of the time.
     void prewarm_async();
 
     // One synchronous step. Captures a frame (returns captured=false on
@@ -129,9 +140,16 @@ private:
     std::mutex            mu_;
     std::atomic<std::chrono::steady_clock::time_point::rep> last_use_ns_{0};
 
-    // Background thread that closes the camera after idle_keep_ms ms of
-    // inactivity. Only started when policy == "idle_keep" and
-    // idle_keep_ms > 0.
+    // Bumped on every camera close. prewarm_async() captures it at spawn and
+    // bails if it changed before the (delayed) open runs — the guard that
+    // makes early prewarm safe against re-opening a just-closed stream.
+    std::atomic<uint64_t>        use_gen_{0};
+
+    // Background watchdog. For "idle_keep" it closes the camera after
+    // idle_keep_ms of inactivity; for "lazy" it's a safety net closing the
+    // stream lazy_safety_close_ms after last use if it's somehow still on.
+    // Window is resolved once in the ctor.
+    std::chrono::milliseconds    watchdog_window_{0};
     std::thread                  idle_thread_;
     std::atomic<bool>            idle_stop_{false};
     std::condition_variable      idle_cv_;
